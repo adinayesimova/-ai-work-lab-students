@@ -89,7 +89,7 @@ const { chromium } = require('playwright');
     const speakerIndex = await page.evaluate(() => getTasks('audio').findIndex(t => t.id === 'custom-1793212548486-adx3'));
     await page.evaluate(index => go('audio', index), speakerIndex);
     const expected = await page.evaluate(() => getTasks('audio')[taskIndex].transcript);
-    await page.locator('#transcriptAnswer').fill(expected.replace(/^Голос [0-9]+:\\s*/gm, ''));
+    await page.locator('#transcriptAnswer').fill(expected.replace(/Голос [0-9]+:/g, ''));
     await page.locator('#checkBtn').click();
     assert.match(await page.locator('#feedback').getAttribute('class'), /bad/);
     await page.locator('#transcriptAnswer').fill(expected);
