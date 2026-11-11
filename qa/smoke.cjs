@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, channel: 'chrome' });
   const page = await browser.newPage({ viewport: { width: 1366, height: 850 } });
   const errors = [];
   page.on('pageerror', error => errors.push(String(error)));
