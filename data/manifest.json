@@ -1,0 +1,17 @@
+{
+  "format": "ai-work-lab-student-data",
+  "version": 1,
+  "taskCount": 79,
+  "shards": 11,
+  "moduleCounts": {
+    "count": 9,
+    "boxes": 8,
+    "classify": 6,
+    "colour": 6,
+    "safety": 40,
+    "audio": 10
+  },
+  "images": 29,
+  "audio": 10,
+  "publicationStatus": "public; owner reports permission for included media"
+}
