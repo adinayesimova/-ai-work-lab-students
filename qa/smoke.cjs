@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 
 (async () => {
-  const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+  const browser = await chromium.launch({ headless: true, channel: 'chrome', args: ['--autoplay-policy=no-user-gesture-required'] });
   const page = await browser.newPage({ viewport: { width: 1366, height: 850 } });
   const errors = [];
   page.on('pageerror', error => errors.push(String(error)));
@@ -37,6 +37,28 @@ const { chromium } = require('playwright');
     }
     assert.equal(rendered, 100);
     console.log('All 100 exercise screens rendered without page errors.');
+
+    // Every embedded audio must actually decode and begin playback in Chrome.
+    for (let i = 0; i < info.modules.audio; i++) {
+      await page.evaluate(index => go('audio', index), i);
+      const outcome = await page.locator('#transcriptAudio').evaluate(async audio => {
+        try {
+          await Promise.race([
+            audio.play(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Audio playback timeout')), 6000))
+          ]);
+          await new Promise(resolve => setTimeout(resolve, 120));
+          const result = { duration: audio.duration, error: audio.error?.message || null, paused: audio.paused };
+          audio.pause();
+          return result;
+        } catch (error) {
+          return { duration: audio.duration, error: String(error) };
+        }
+      });
+      assert.ok(!outcome.error && outcome.paused === false && Number.isFinite(outcome.duration) && outcome.duration > 0,
+        'audio ' + (i + 1) + ' playback failed: ' + JSON.stringify(outcome));
+    }
+    console.log('All 10 embedded audio files decoded and started playback in Chrome.');
 
     // Real pointer interaction for object counting.
     await page.evaluate(() => go('count', 0));
