@@ -236,7 +236,7 @@ function downloadSafetyPolicy(){const blob=new Blob([safetyPolicyText],{type:'te
 let editingId=null;let editorRects=[],editorImageData='';const STORE='aiworklab_public_progress_v1';
 function safeGet(k,f){try{return JSON.parse(localStorage.getItem(k))??f}catch{return f}}
 let saved=safeGet(STORE,{}), custom=window.__AI_WORK_LAB_TASKS;
-let showExampleTasks=false;
+let showExampleTasks=true;
 // Legacy audio-event tasks from v0.6 remain in the archive, never shown as transcriptions.
 custom=custom.map(t=>t.kind==='audio'&&Array.isArray(t.sequence)?{...t,kind:'audio-event'}:t);
 let section='home', taskIndex=0, currentChoice='', currentMultiChoices=new Set(), currentRects=[], drawing=null, boundListeners=[], totalAttempts={};
