@@ -2,13 +2,15 @@
 
 An interactive browser-based practice lab for data annotation and AI response evaluation.
 
-**79 exercises across six modules:**
-- Object counting — 9
-- Bounding boxes — 8
-- Image classification — 6
-- Colour description — 6
-- AI safety review — 40
-- Audio annotation — 10
+**100 exercises across six modules:** 79 imported student exercises plus 21 original built-in demonstration exercises.
+- Object counting — 12 (9 imported + 3 built-in)
+- Bounding boxes — 10 (8 + 2)
+- Image classification — 10 (6 + 4)
+- Colour description — 8 (6 + 2)
+- AI safety review — 50 (40 + 10)
+- Audio annotation — 10 (10 + 0)
+
+The `data/manifest.json` `taskCount` refers only to the 79 imported exercises stored in the 11 task shards. The other 21 are embedded in `index.html`.
 
 ## How to use
 Open **index.html** in a browser (or use the published GitHub Pages website). Select a module, complete exercises, and review the results.
