@@ -89,6 +89,26 @@
 .count-explain{font-size:11px;line-height:1.6;color:#687c93;margin:8px 0 16px;}
 .count-readonly{font-weight:800;font-size:19px!important;background:#f7f9fd!important;}
 @media (max-width:600px){.count-mark{width:27px;height:27px;min-width:27px;font-size:11px}.count-tools{gap:6px}.count-total{font-size:12px}}
+
+/* Object Counting v1.3: adjustable precise dots and scrollable zoom canvas */
+.count-viewport{width:100%;max-width:100%;max-height:620px;overflow:auto;overscroll-behavior:contain;border-radius:12px;scrollbar-width:thin;background:#eaf0f9;touch-action:pan-x pan-y}
+.count-viewport .count-figure{width:100%;max-width:none;min-width:0;margin:0;touch-action:pan-x pan-y}
+.count-viewport .count-figure>svg,.stage .count-viewport .count-figure>img{max-height:none;max-width:100%;width:100%;height:auto}
+.count-viewport.is-panning,.count-viewport.is-panning .count-figure{cursor:grab}
+.count-viewport.is-dragging,.count-viewport.is-dragging .count-figure{cursor:grabbing}
+.count-viewport.is-panning .count-mark-layer{pointer-events:none}
+.count-viewport .count-mark{width:var(--count-dot-size,10px);height:var(--count-dot-size,10px);min-width:0;min-height:0;border:1px solid #fff;box-shadow:0 0 0 1px #a72e2b,0 1px 3px #14233c70;font-size:clamp(7px,calc(var(--count-dot-size,10px) * .43),12px);line-height:1;overflow:visible}
+.count-viewport .count-mark:focus-visible{outline:2px solid #fcd34d}
+.count-viewport .count-mark:not(.has-number){font-size:0}
+.count-setting{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;font-weight:650;color:#465b76}
+.count-setting input[type=range]{width:100%;min-width:90px;accent-color:#315feb}
+.count-setting input[type=checkbox]{accent-color:#315feb}
+.count-settings{display:grid;gap:10px;border:1px solid #dce6f5;background:#f7faff;border-radius:12px;padding:12px;margin:12px 0}
+.count-zoom-controls{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
+.count-zoom-controls .btn{min-width:38px}
+.count-mode-active{background:#e5edff;border-color:#95adfb;color:#214fc8}
+@media(max-width:600px){.count-viewport .count-mark{width:var(--count-dot-size,10px);height:var(--count-dot-size,10px);min-width:0;font-size:clamp(7px,calc(var(--count-dot-size,10px) * .43),12px)}.count-viewport{max-height:72vh}}
+
 </style>
 </head>
 <body>
@@ -313,42 +333,98 @@ function countMarksFor(t){
 function updateCountMarks(t,marks){
  saved[t.id]={...(saved[t.id]||{}),countMarks:marks};persist();renderCountMarks(t);
 }
+
+let countUI={size:10,zoom:100,labels:false,mode:'mark'};
 function renderCountMarks(t){
  const layer=$('countMarkLayer'),total=$('countMarkedTotal'),input=$('numberAnswer');
  if(!layer||!total||!input)return;
  const marks=countMarksFor(t);
- layer.innerHTML=marks.map((p,i)=>`<button type="button" class="count-mark" data-count-index="${i}" style="left:${(p.x*100).toFixed(4)}%;top:${(p.y*100).toFixed(4)}%" aria-label="Удалить отметку ${i+1}" title="Нажми, чтобы убрать отметку ${i+1}">${i+1}</button>`).join('');
+ const numbered=countUI.labels&&countUI.size>=18;
+ layer.style.setProperty('--count-dot-size',countUI.size+'px');
+ layer.innerHTML=marks.map((p,i)=>`<button type="button" class="count-mark${numbered?' has-number':''}" data-count-index="${i}" style="left:${(p.x*100).toFixed(4)}%;top:${(p.y*100).toFixed(4)}%" aria-label="Удалить отметку ${i+1}" title="Удалить отметку ${i+1}">${numbered?i+1:''}</button>`).join('');
  layer.querySelectorAll('[data-count-index]').forEach(btn=>btn.onclick=e=>{
-   e.stopPropagation(); const next=countMarksFor(t);next.splice(Number(btn.dataset.countIndex),1);updateCountMarks(t,next);
+   e.stopPropagation();
+   if(countUI.mode!=='mark')return;
+   const next=countMarksFor(t);next.splice(Number(btn.dataset.countIndex),1);updateCountMarks(t,next);
  });
  total.textContent=String(marks.length);input.value=String(marks.length);
  $('countUndo').disabled=marks.length===0;$('countClear').disabled=marks.length===0;
 }
+function countApplyUI(t){
+ const viewport=$('countViewport'),fig=$('countFigure');
+ if(!viewport||!fig)return;
+ fig.style.width=countUI.zoom+'%';
+ viewport.classList.toggle('is-panning',countUI.mode==='pan');
+ $('countZoomValue').textContent=countUI.zoom+'%';
+ $('countSizeValue').textContent=countUI.size+' px';
+ $('countSize').value=String(countUI.size);
+ $('countZoom').value=String(countUI.zoom);
+ $('countNumbers').checked=countUI.labels;
+ $('countMarkMode').classList.toggle('count-mode-active',countUI.mode==='mark');
+ $('countPanMode').classList.toggle('count-mode-active',countUI.mode==='pan');
+ $('countMarkMode').setAttribute('aria-pressed',String(countUI.mode==='mark'));
+ $('countPanMode').setAttribute('aria-pressed',String(countUI.mode==='pan'));
+ $('countNumbersNote').textContent=countUI.labels&&countUI.size<18?'Номера отображаются при размере от 18 px. Точки и счётчик работают при любом размере.':'';
+ renderCountMarks(t);
+}
 function countView(t){
  const image=t.type==='custom'?'<img id="customImage" alt="Загруженная учебная фотография">':t.svg;
- $('stage').innerHTML=`<div class="count-figure" id="countFigure" role="group" aria-label="Изображение для отметок и подсчёта объектов">${image}<div class="count-mark-layer" id="countMarkLayer"></div></div>`;
+ $('stage').innerHTML=`<div class="count-viewport" id="countViewport"><div class="count-figure" id="countFigure" role="group" aria-label="Изображение для отметок и подсчёта объектов">${image}<div class="count-mark-layer" id="countMarkLayer"></div></div></div>`;
  if(t.type==='custom'){
-   const img=$('customImage'),figure=$('countFigure');
-   img.onload=()=>{const w=Math.min(920,img.naturalWidth||920,470*(img.naturalWidth||1)/(img.naturalHeight||1));figure.style.maxWidth=Math.max(80,w)+'px';};
+   const img=$('customImage'),viewport=$('countViewport');
+   img.onload=()=>{const w=Math.min(920,img.naturalWidth||920,470*(img.naturalWidth||1)/(img.naturalHeight||1));viewport.style.maxWidth=Math.max(80,w)+'px';};
    img.src=t.image;
  }
- $('controls').innerHTML=`<div class="count-tools"><div class="count-total">Отмечено: <span id="countMarkedTotal" aria-live="polite">0</span></div><button type="button" class="btn btn-outline btn-sm" id="countUndo">↶ Отменить</button><button type="button" class="btn btn-outline btn-sm" id="countClear">Сбросить отметки</button></div><label class="field-label" for="numberAnswer">Количество объектов (считается автоматически)</label><input class="count-readonly" id="numberAnswer" type="number" min="0" max="500" value="0" readonly aria-readonly="true"><div class="count-explain">Нажимай на каждый нужный предмет на картинке: появится номер 1, 2, 3… Метки остаются на изображении, даже если перейти к другому заданию. Нажми на номер, чтобы удалить ошибочную отметку. Подсчёт выполняется по твоим отметкам, а не через распознавание объектов ИИ.</div>`;
- $('countFigure').addEventListener('click',e=>{
-   const f=$('countFigure');const r=f.getBoundingClientRect();
+ $('controls').innerHTML=`<div class="count-tools"><div class="count-total">Отмечено: <span id="countMarkedTotal" aria-live="polite">0</span></div><button type="button" class="btn btn-outline btn-sm" id="countUndo">↶ Отменить</button><button type="button" class="btn btn-outline btn-sm" id="countClear">Сбросить отметки</button></div>
+ <div class="count-settings" aria-label="Настройки разметки объектов">
+ <label class="count-setting" for="countSize">Размер точек <span id="countSizeValue">10 px</span></label>
+ <input id="countSize" type="range" min="6" max="30" step="2" value="10" aria-label="Размер точек">
+ <label class="count-setting" for="countNumbers"><span>Показывать номера (от 18 px)</span><input id="countNumbers" type="checkbox"></label>
+ <div id="countNumbersNote" class="small-note" aria-live="polite"></div>
+ <div class="count-setting"><label for="countZoom">Масштаб изображения</label><span id="countZoomValue">100%</span></div>
+ <input id="countZoom" type="range" min="100" max="500" step="25" value="100" aria-label="Масштаб изображения">
+ <div class="count-zoom-controls"><button type="button" class="btn btn-outline btn-sm" id="countZoomOut" aria-label="Уменьшить масштаб">−</button><button type="button" class="btn btn-outline btn-sm" id="countZoomIn" aria-label="Увеличить масштаб">+</button><button type="button" class="btn btn-outline btn-sm" id="countZoomReset">100%</button><button type="button" class="btn btn-outline btn-sm" id="countMarkMode">Отмечать</button><button type="button" class="btn btn-outline btn-sm" id="countPanMode">Перемещать</button></div>
+ </div>
+ <label class="field-label" for="numberAnswer">Количество объектов (считается автоматически)</label><input class="count-readonly" id="numberAnswer" type="number" min="0" max="500" value="0" readonly aria-readonly="true">
+ <div class="count-explain">В режиме «Отмечать» нажимай на каждый нужный предмет: появится маленькая красная точка. Для удаления нажми точно на отметку. Увеличивай изображение для мелких объектов; в режиме «Перемещать» перетаскивай увеличенную картинку или используй прокрутку. Отметки сохраняются при смене заданий. Счётчик основан на твоих отметках, а не на распознавании ИИ.</div>`;
+ const viewport=$('countViewport'),figure=$('countFigure');
+ figure.addEventListener('click',e=>{
+   if(countUI.mode!=='mark'||viewport.dataset.justDragged==='1')return;
+   if(e.target.closest('.count-mark'))return;
+   const r=figure.getBoundingClientRect();
    if(!r.width||!r.height)return;
    const x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;
    if(x<0||x>1||y<0||y>1)return;
    const marks=countMarksFor(t);
-   const closeIndex=marks.findIndex(p=>Math.hypot((p.x-x)*r.width,(p.y-y)*r.height)<13);
-   if(closeIndex>=0){marks.splice(closeIndex,1);updateCountMarks(t,marks);return;}
    if(marks.length>=500){showFeedback('bad','Максимум 500 отметок на одном изображении.');return;}
    marks.push({x,y});updateCountMarks(t,marks);
  });
+ let drag=null;
+ viewport.addEventListener('pointerdown',e=>{
+   if(countUI.mode!=='pan'||e.pointerType==='touch')return;
+   drag={x:e.clientX,y:e.clientY,left:viewport.scrollLeft,top:viewport.scrollTop};
+   viewport.setPointerCapture(e.pointerId);viewport.classList.add('is-dragging');
+ });
+ viewport.addEventListener('pointermove',e=>{
+   if(!drag)return;
+   viewport.scrollLeft=drag.left-(e.clientX-drag.x);
+   viewport.scrollTop=drag.top-(e.clientY-drag.y);
+ });
+ const finishPan=()=>{drag=null;viewport.classList.remove('is-dragging');};
+ viewport.addEventListener('pointerup',finishPan);viewport.addEventListener('pointercancel',finishPan);
+ $('countSize').oninput=e=>{countUI.size=Number(e.target.value);countApplyUI(t);};
+ $('countNumbers').onchange=e=>{countUI.labels=e.target.checked;countApplyUI(t);};
+ $('countZoom').oninput=e=>{countUI.zoom=Number(e.target.value);countApplyUI(t);};
+ $('countZoomOut').onclick=()=>{countUI.zoom=Math.max(100,countUI.zoom-25);countApplyUI(t);};
+ $('countZoomIn').onclick=()=>{countUI.zoom=Math.min(500,countUI.zoom+25);countApplyUI(t);};
+ $('countZoomReset').onclick=()=>{countUI.zoom=100;viewport.scrollTop=0;viewport.scrollLeft=0;countApplyUI(t);};
+ $('countMarkMode').onclick=()=>{countUI.mode='mark';countApplyUI(t);};
+ $('countPanMode').onclick=()=>{countUI.mode='pan';countApplyUI(t);};
  $('countUndo').onclick=()=>{const marks=countMarksFor(t);marks.pop();updateCountMarks(t,marks);};
- $('countClear').onclick=()=>{const marks=countMarksFor(t);if(marks.length&&confirm('Убрать все числовые отметки с текущей картинки?'))updateCountMarks(t,[]);};
- renderCountMarks(t);
+ $('countClear').onclick=()=>{const marks=countMarksFor(t);if(marks.length&&confirm('Убрать все отметки с текущей картинки?'))updateCountMarks(t,[]);};
+ countApplyUI(t);
  $('stageFoot').textContent=t.type==='custom'?'Учебное изображение · отметки сохраняются в браузере':'Авторская учебная иллюстрация · ручной подсчёт по отметкам';
- $('moduleInfo').innerHTML='<b>Object Counting:</b> отмечай нужные объекты одним кликом — каждый маркер получает свой порядковый номер. Счётчик обновляется автоматически. Проверка сравнивает количество отмеченных объектов с правильным ответом; расположение каждой метки не сопоставляется с эталонными координатами.';
+ $('moduleInfo').innerHTML='<b>Object Counting:</b> отмечай объекты маленькими точками, выбирай размер и масштаб 100–500%. Для перемещения увеличенной картинки переключись в режим «Перемещать». Счётчик обновляется автоматически; проверка сравнивает количество отметок с ответом, но не оценивает координаты.';
 }
 
 function choiceView(t){if(t.image){$('stage').innerHTML='<img id="customImage" alt="Учебная фотография">';$('customImage').src=t.image;}else $('stage').innerHTML=t.svg;const multi=isMultiClassify(t);$('controls').innerHTML=`<span class="field-label">${multi?'Выбери все подходящие категории':'Выбери одну категорию'}</span><div class="option-list" id="options"></div>`;if(multi){renderMultiClassifyOptions(t);$('moduleInfo').innerHTML='<b>Multi-label Classification</b> — одно изображение может иметь несколько правильных категорий. Отметь все подходящие варианты, не добавляя лишних.';}else{renderOptions(t);$('moduleInfo').innerHTML='<b>Single-label Classification</b> — выбери одну основную категорию изображения. Для режима Multi-label нужно отметить все присутствующие категории.';}}
