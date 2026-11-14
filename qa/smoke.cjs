@@ -93,6 +93,35 @@ const { chromium } = require('playwright');
     assert.equal(ordering.reversed, false);
     console.log('Bounding-box drawing, undo and order validation OK.');
 
+    // Regression for close black-shoe bounding boxes (actual shoes-6 task).
+    // More permissive placement must still reject duplicates, extras and incorrect names.
+    const shoesTest = await page.evaluate(() => {
+      const task = getTasks('boxes').find(x => x.id === 'custom-1792594838730-7lvf');
+      const reference = task.targets.map(t => ({ ...t, label: 'туфли' }));
+      const user = reference.map(r => ({ ...r }));
+      user[4] = { x: 428, y: 321, w: 22, h: 47, label: 'туфли' };
+      user[5] = { x: 463, y: 328, w: 49, h: 61, label: 'туфли' };
+      const grade = boxes => boxesScore(task.targets, boxes, true, null, task.id);
+      const badName = user.map(r => ({ ...r })); badName[5].label = 'сумка';
+      const duplicate = user.map(r => ({ ...r })); duplicate[4] = { ...duplicate[5] };
+      return {
+        count: task.targets.length,
+        exact: grade(reference).complete,
+        narrow: grade(user).complete,
+        narrowGood: grade(user).good,
+        reversed: grade([...user].reverse()).complete,
+        missing: grade(user.slice(0, 5)).complete,
+        extra: grade([...user, { x: 620, y: 30, w: 20, h: 20, label: 'туфли' }]).complete,
+        duplicated: grade(duplicate).complete,
+        wrongLabel: grade(badName).complete
+      };
+    });
+    assert.deepEqual(shoesTest,
+      { count: 6, exact: true, narrow: true, narrowGood: 6, reversed: true,
+        missing: false, extra: false, duplicated: false, wrongLabel: false });
+    console.log('Six-shoe screenshot regression, labels and false-positive controls OK.');
+
+
     // Explicitly test one invalid and one valid timestamp submission.
     const audioIndex = await page.evaluate(() => getTasks('audio').findIndex(t => t.id === 'custom-1793884339947-fy05'));
     assert.ok(audioIndex >= 0);

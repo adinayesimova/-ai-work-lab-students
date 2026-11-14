@@ -565,7 +565,7 @@ function boxesView(t){
  $('stage').innerHTML=boxSvg();
  const requireLabels=needsBoxLabels(t);
  $('stageFoot').textContent=(requireLabels?'Нарисуй рамку вокруг предмета, затем подпиши её в поле ниже.':'Рисуй мышью или пальцем прямо на изображении. Лишнюю рамку можно удалить.')+' Порядок создания рамок не влияет на оценку.';
- $('controls').innerHTML=`${t.id==='custom-1792594838730-7lvf'?'<p class="small-note"><b>Версия задания: shoes-6-v2 · Эталон: 6 пар обуви · исправлены границы двух правых пар.</b></p>':''}<div class="toolrow"><strong class="field-label">Нарисовано рамок: <span id="numRects">0</span></strong><button id="undoRect" class="btn btn-outline btn-sm">↶ Отменить</button></div><p class="small-note">${requireLabels?'Выдели объект → подпиши его ниже → повтори для остальных. Введи название объекта. Принимаются эталонные названия и предусмотренные варианты.':'Начни в верхнем левом углу объекта и проведи к нижнему правому. Рамки проверяются по IoU.'}</p>${requireLabels?'<div id="userBoxLabels" class="box-label-list user-box-labels"></div>':''}`;
+ $('controls').innerHTML=`${t.id==='custom-1792594838730-7lvf'?'<p class="small-note"><b>Версия задания: shoes-6-v3 · Эталон: 6 пар обуви · отдельная рамка для каждой пары, включая две правые.</b></p>':''}<div class="toolrow"><strong class="field-label">Нарисовано рамок: <span id="numRects">0</span></strong><button id="undoRect" class="btn btn-outline btn-sm">↶ Отменить</button></div><p class="small-note">${requireLabels?'Выдели объект → подпиши его ниже → повтори для остальных. Введи название объекта. Принимаются эталонные названия и предусмотренные варианты.':'Начни в верхнем левом углу объекта и проведи к нижнему правому. Рамки проверяются по IoU.'}</p>${requireLabels?'<div id="userBoxLabels" class="box-label-list user-box-labels"></div>':''}`;
  $('undoRect').onclick=()=>{currentRects.pop();drawRects()};
  const svg=$('stage').querySelector('svg');
  svg.addEventListener('pointerdown',e=>{if(e.button!==0&&e.pointerType==='mouse')return;const p=locate(e,svg);drawing={x0:p.x,y0:p.y};svg.setPointerCapture(e.pointerId);showDraft({x:p.x,y:p.y,w:0,h:0})});
@@ -585,24 +585,26 @@ function boxesScore(targets,rects,requireLabels=false,order=null,taskId=''){
  const minIoU=0.40;
  const isShoes=taskId==='custom-1792594838730-7lvf' && targets.length===6;
  const accepted=(ref,value)=>{const text=normalizeBoxLabel(value);return !!text&&[ref.label,...(ref.aliases||[])].some(a=>normalizeBoxLabel(a)===text)};
- function overlapArea(a,b){
-   const w=Math.max(0,Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x));
-   const h=Math.max(0,Math.min(a.y+a.h,b.y+b.h)-Math.max(a.y,b.y));
-   return w*h;
- }
+
  function candidate(rect,ref,j,i){
    const exactIoU=iou(rect,ref);
-   if(exactIoU>=minIoU)return {i,j,score:exactIoU,matchedBy:'IoU'};
    if(isShoes&&j>=4){
-     const dx=Math.abs(rect.x+rect.w/2-ref.x-ref.w/2);
-     const dy=Math.abs(rect.y+rect.h/2-ref.y-ref.h/2);
-     const fraction=overlapArea(rect,ref)/Math.max(1,Math.min(rect.w*rect.h,ref.w*ref.h));
-     if(dx<=28&&dy<=45&&fraction>=0.14&&rect.w>=14&&rect.h>=15){
-       return {i,j,score:0.4+0.12*(1-dx/28)+0.08*(1-dy/45),matchedBy:'center'};
+     // Two close-up black-shoe regions: accept compact boxes centered on each distinct shoe.
+     // Separate the areas at the midpoint, so duplicating the same shoe cannot score twice.
+     const centerX=rect.x+rect.w/2,centerY=rect.y+rect.h/2;
+     const refCenterX=ref.x+ref.w/2,refCenterY=ref.y+ref.h/2;
+     const boundary=((targets[4].x+targets[4].w/2)+(targets[5].x+targets[5].w/2))/2;
+     const inOwnArea=j===4?centerX<boundary:centerX>=boundary;
+     const compact=rect.w>=10&&rect.h>=15&&rect.w<=90&&rect.h<=115;
+     const near=Math.abs(centerX-refCenterX)<=45&&Math.abs(centerY-refCenterY)<=60;
+     if(inOwnArea&&compact&&near){
+       return {i,j,score:Math.max(minIoU,exactIoU),matchedBy:exactIoU>=minIoU?'IoU':'shoe-position'};
      }
+     return null;
    }
-   return null;
+   return exactIoU>=minIoU?{i,j,score:exactIoU,matchedBy:'IoU'}:null;
  }
+
  const edges=rects.map((rect,i)=>targets.flatMap((ref,j)=>{
    const c=candidate(rect,ref,j,i);
    return c?[{...c,labelOk:!requireLabels||accepted(ref,rect.label)}]:[];
@@ -630,7 +632,24 @@ function boxesScore(targets,rects,requireLabels=false,order=null,taskId=''){
 function showFeedback(kind,msg){let el=$('feedback');if(!el)return;el.className='feedback '+kind;el.innerHTML=msg;}
 function hint(t){const area=$('hintArea');if(!area)return;const hints={count:t.hint||'Пройдись по изображению слева направо и не считай объекты другого типа.',boxes:'Начни с самого левого нужного объекта. Проведи рамку по его видимым границам; не охватывай соседние.',classify:'Посмотри, занимает ли большую часть сцены улица, природный ландшафт или интерьер.',safety:'Оценивай именно ответ ИИ. Посмотри, содержит ли ответ один из запретов S1–S5, даже если он также включает безопасный текст.',audio:'Слушай короткими отрезками. Записывай точные слова, не придумывай пропущенное и проверь смену говорящих.',colour:'Выбери лишь основные цвета сцены. В тексте называй объекты вместе с цветами: «красная крыша», «зелёное дерево». Чтобы пройти проверку, укажи все ключевые детали.'};if(area.innerHTML){area.innerHTML='';return}area.innerHTML=`<div class="hint">${esc(t.hint||hints[section])}</div>`}
 function markDone(id){saved[id] ??={}; saved[id].done=true;saved[id].time=new Date().toISOString();persist();nav();let tab=$('taskTabs')?.querySelector(`button[data-index="${taskIndex}"]`);if(tab)tab.classList.add('done');}
-function check(t){if(section==='audio'){checkAudioTask(t);return}if(section==='colour'){checkColour(t);return}if(section==='classify'&&isMultiClassify(t)){if(!currentMultiChoices.size){showFeedback('bad','Отметь хотя бы одну категорию.');return}const expected=new Set(t.answers||[]),correct=[...currentMultiChoices].filter(x=>expected.has(x)),extra=[...currentMultiChoices].filter(x=>!expected.has(x)),missed=[...expected].filter(x=>!currentMultiChoices.has(x));if(!extra.length&&!missed.length){markDone(t.id);showFeedback('good',`<b>Верно!</b> Выбраны все ${expected.size} правильные категории. ${esc(t.why||'')}`)}else{const old=saved[t.id]||{};saved[t.id]={...old,attempts:(old.attempts||0)+1};persist();showFeedback('bad',`Правильно выбрано: <b>${correct.length} из ${expected.size}</b>. Лишних категорий: <b>${extra.length}</b>; пропущенных: <b>${missed.length}</b>. Проверь изображение и попробуй ещё раз.`)}return}if(section==='safety'){if(!currentChoice){showFeedback('bad','Выбери Safe или Violation.');return}if(currentChoice===t.answer){markDone(t.id);showFeedback('good',`<b>Верно: ${esc(t.answer)}.</b> ${esc(t.why)} <div class="safety-result"><b>Пункт:</b> ${esc(t.policyId||'general')} · См. учебную политику выше.</div>`)}else{const old=saved[t.id]||{},tries=(old.attempts||0)+1;saved[t.id]={...old,attempts:tries};persist();showFeedback('bad',tries<2?'Пока неверно. Сравни ответ ИИ с правилами S1–S5 и попробуй ещё раз.':`<b>Правильный ответ: ${esc(t.answer)}</b>. ${esc(t.why)} <div class="safety-result">Пункт: ${esc(t.policyId||'general')}. Можно выбрать верную метку и завершить упражнение.</div>`)}return}let answer; if(section==='count'){let input=$('numberAnswer');if(!input||input.value.trim()===''){showFeedback('bad','Сначала введи целое число.');return}answer=Number(input.value);if(!Number.isInteger(answer)||answer<0){showFeedback('bad','Введите целое неотрицательное число.');return}}else if(section==='classify'||section==='text'){if(!currentChoice){showFeedback('bad','Сначала выбери один вариант ответа.');return}answer=currentChoice}else if(section==='boxes'){if(!currentRects.length){showFeedback('bad','Сначала нарисуй хотя бы одну рамку вокруг объекта.');return}const labeled=needsBoxLabels(t),score=boxesScore(t.targets,currentRects,labeled,null,t.id);if(score.complete){markDone(t.id);showFeedback('good',`Правильно! Найдено <b>${score.good}</b> из ${t.targets.length} объектов. ${labeled?`Верные подписи: <b>${score.labelsCorrect} из ${t.targets.length}</b>. `:''}Средний IoU: <b>${Math.round(score.mean*100)}%</b>.`)}else{const mismatch=labeled?score.details.filter(x=>!x.labelOk).map(x=>x.i+1):[];const missed=score.unmatchedRects.map(i=>i+1);showFeedback('bad',`Рамки в допуске: <b>${score.good} из ${t.targets.length}</b>, всего нарисовано <b>${currentRects.length}</b>. ${missed.length?'Проверь расположение рамок № '+missed.join(', ')+' (IoU ниже 0,40 или лишняя рамка). ':''}${labeled?`Подписи совпали: <b>${score.labelsCorrect} из ${t.targets.length}</b>. ${mismatch.length?'Проверь текст подписи рамок № '+mismatch.join(', ')+'. ':''}`:''}Для зачёта нужна отдельная рамка для каждого объекта (IoU ≥ 0,40)${labeled?' и корректная подпись':''}. Порядок выделения не влияет на зачёт.`)}return}
+function check(t){if(section==='audio'){checkAudioTask(t);return}if(section==='colour'){checkColour(t);return}if(section==='classify'&&isMultiClassify(t)){if(!currentMultiChoices.size){showFeedback('bad','Отметь хотя бы одну категорию.');return}const expected=new Set(t.answers||[]),correct=[...currentMultiChoices].filter(x=>expected.has(x)),extra=[...currentMultiChoices].filter(x=>!expected.has(x)),missed=[...expected].filter(x=>!currentMultiChoices.has(x));if(!extra.length&&!missed.length){markDone(t.id);showFeedback('good',`<b>Верно!</b> Выбраны все ${expected.size} правильные категории. ${esc(t.why||'')}`)}else{const old=saved[t.id]||{};saved[t.id]={...old,attempts:(old.attempts||0)+1};persist();showFeedback('bad',`Правильно выбрано: <b>${correct.length} из ${expected.size}</b>. Лишних категорий: <b>${extra.length}</b>; пропущенных: <b>${missed.length}</b>. Проверь изображение и попробуй ещё раз.`)}return}if(section==='safety'){if(!currentChoice){showFeedback('bad','Выбери Safe или Violation.');return}if(currentChoice===t.answer){markDone(t.id);showFeedback('good',`<b>Верно: ${esc(t.answer)}.</b> ${esc(t.why)} <div class="safety-result"><b>Пункт:</b> ${esc(t.policyId||'general')} · См. учебную политику выше.</div>`)}else{const old=saved[t.id]||{},tries=(old.attempts||0)+1;saved[t.id]={...old,attempts:tries};persist();showFeedback('bad',tries<2?'Пока неверно. Сравни ответ ИИ с правилами S1–S5 и попробуй ещё раз.':`<b>Правильный ответ: ${esc(t.answer)}</b>. ${esc(t.why)} <div class="safety-result">Пункт: ${esc(t.policyId||'general')}. Можно выбрать верную метку и завершить упражнение.</div>`)}return}let answer; if(section==='count'){let input=$('numberAnswer');if(!input||input.value.trim()===''){showFeedback('bad','Сначала введи целое число.');return}answer=Number(input.value);if(!Number.isInteger(answer)||answer<0){showFeedback('bad','Введите целое неотрицательное число.');return}}else if(section==='classify'||section==='text'){if(!currentChoice){showFeedback('bad','Сначала выбери один вариант ответа.');return}answer=currentChoice}else if(section==='boxes'){
+ if(!currentRects.length){showFeedback('bad','Сначала нарисуй хотя бы одну рамку вокруг объекта.');return}
+ const labeled=needsBoxLabels(t),score=boxesScore(t.targets,currentRects,labeled,null,t.id);
+ const isShoeTask=t.id==='custom-1792594838730-7lvf';
+ if(score.complete){
+   markDone(t.id);
+   showFeedback('good',isShoeTask?
+     `Правильно! Найдено <b>${score.good} из ${t.targets.length}</b> пар обуви. Подписи верные: <b>${score.labelsCorrect} из ${t.targets.length}</b>.`:
+     `Правильно! Найдено <b>${score.good}</b> из ${t.targets.length} объектов. ${labeled?`Верные подписи: <b>${score.labelsCorrect} из ${t.targets.length}</b>. `:''}Средний IoU: <b>${Math.round(score.mean*100)}%</b>.`);
+ }else{
+   const mismatch=labeled?score.details.filter(x=>!x.labelOk).map(x=>x.i+1):[];
+   const missed=score.unmatchedRects.map(i=>i+1);
+   const placementHint=isShoeTask?'(рамка вне области своей пары обуви или лишняя рамка)':'(IoU ниже 0,40 или лишняя рамка)';
+   const required=isShoeTask?'Для зачёта обведи каждую из шести пар отдельной рамкой, включая две правые.':'Для зачёта нужна отдельная рамка для каждого объекта (IoU ≥ 0,40).';
+   showFeedback('bad',`Рамки в допуске: <b>${score.good} из ${t.targets.length}</b>, всего нарисовано <b>${currentRects.length}</b>. ${missed.length?'Проверь расположение рамок № '+missed.join(', ')+' '+placementHint+'. ':''}${labeled?`Подписи совпали: <b>${score.labelsCorrect} из ${t.targets.length}</b>. ${mismatch.length?'Проверь текст подписи рамок № '+mismatch.join(', ')+'. ':''}`:''}${required} ${labeled?'Нужна корректная подпись каждой рамки. ':''}Порядок выделения не влияет на зачёт.`);
+ }
+ return;
+}
 if(answer===t.answer){markDone(t.id);showFeedback('good',`Верно! ${section==='classify'||section==='text'?esc(t.why):`Правильный ответ: <b>${esc(t.answer)}</b>.`}`)}else{const old=saved[t.id]||{};saved[t.id]={...old,attempts:(old.attempts||0)+1};persist();showFeedback('bad',section==='text'||section==='classify'?'Не совсем. Перечитай критерии и попробуй ещё раз.':'Количество пока неверное. Проверь правило и попробуй пересчитать.')}
 }
 
