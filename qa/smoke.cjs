@@ -83,15 +83,17 @@ const { chromium } = require('playwright');
     await page.locator('#undoRect').click();
     assert.equal((await page.locator('#numRects').innerText()).trim(), '0');
     const ordering = await page.evaluate(() => {
-      const t = getTasks('boxes').find(x => x.boxOrder);
-      const good = t.boxOrder.map(index => ({ ...t.targets[index] }));
-      const wrong = [...good]; [wrong[0], wrong[1]] = [wrong[1], wrong[0]];
-      return { correct: boxesScore(t.targets, good, true, t.boxOrder).complete,
-        reversed: boxesScore(t.targets, wrong, true, t.boxOrder).complete };
+      const t = getTasks('boxes').find(x => x.targets?.length >= 2 && x.requireLabels);
+      if (!t) return { correct: false, reversed: false };
+      const good = t.targets.map(r => ({ ...r }));
+      return {
+        correct: boxesScore(t.targets, good, true, null, t.id).complete,
+        reversed: boxesScore(t.targets, [...good].reverse(), true, null, t.id).complete
+      };
     });
-    assert.equal(ordering.correct, true);
-    assert.equal(ordering.reversed, false);
-    console.log('Bounding-box drawing, undo and order validation OK.');
+    assert.equal(ordering.correct, true, 'matching geometry and labels pass');
+    assert.equal(ordering.reversed, true, 'box creation order must not matter');
+    console.log('Bounding-box drawing, undo and order independence OK.');
 
     // Regression for close black-shoe bounding boxes (actual shoes-6 task).
     // More permissive placement must still reject duplicates, extras and incorrect names.
