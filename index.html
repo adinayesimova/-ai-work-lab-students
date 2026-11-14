@@ -299,6 +299,17 @@ custom=custom.map(original=>{
    const aliases=[...(ref.aliases||[]),...(studentBoxLabelAliases[label]||[])];
    return {...ref,label,aliases:[...new Set(aliases)]};
  });
+ if(t.id==='custom-1792594838730-7lvf' && targets.length===5){
+   // The original fifth rectangle covered two separate pairs of black footwear.
+   // Split the reference in the same 760 x 430 SVG coordinate system as the other targets.
+   const last=targets[4];
+   targets.splice(4,1,
+     {...last,x:439,y:338,w:33,h:56,aliases:[...new Set([...last.aliases,'ботинки','обувь'])]},
+     {...last,x:468,y:334,w:35,h:60,aliases:[...new Set([...last.aliases,'ботинки','обувь'])]}
+   );
+   t.instruction='Обведи все 6 пар обуви на фотографии и подпиши каждую.';
+   t.rules='Каждую пару обуви выдели отдельной рамкой. Порядок рамок не влияет на оценку.';
+ }
  // Bounding-box evaluation assesses location and labels, not annotation sequence.
  return {...t,targets};
 });
