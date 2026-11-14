@@ -120,7 +120,7 @@
 </div>
 <footer class="foot">AI Work Lab · Учебный тренажёр. Задания не являются тестами работодателей. Прохождение не гарантирует трудоустройство. Прогресс сохраняется только в этом браузере.</footer>
 </div>
-<script src="./data/tasks-01.js"></script>
+<script src="./data/tasks-01.js?v=20261114-shoes6"></script>
 <script src="./data/tasks-02.js"></script>
 <script src="./data/tasks-03.js"></script>
 <script src="./data/tasks-04.js"></script>
@@ -307,6 +307,8 @@ custom=custom.map(original=>{
      {...last,x:439,y:338,w:33,h:56,aliases:[...new Set([...last.aliases,'ботинки','обувь'])]},
      {...last,x:468,y:334,w:35,h:60,aliases:[...new Set([...last.aliases,'ботинки','обувь'])]}
    );
+ }
+ if(t.id==='custom-1792594838730-7lvf'){
    t.instruction='Обведи все 6 пар обуви на фотографии и подпиши каждую.';
    t.rules='Каждую пару обуви выдели отдельной рамкой. Порядок рамок не влияет на оценку.';
  }
@@ -563,7 +565,7 @@ function boxesView(t){
  $('stage').innerHTML=boxSvg();
  const requireLabels=needsBoxLabels(t);
  $('stageFoot').textContent=(requireLabels?'Нарисуй рамку вокруг предмета, затем подпиши её в поле ниже.':'Рисуй мышью или пальцем прямо на изображении. Лишнюю рамку можно удалить.')+' Порядок создания рамок не влияет на оценку.';
- $('controls').innerHTML=`<div class="toolrow"><strong class="field-label">Нарисовано рамок: <span id="numRects">0</span></strong><button id="undoRect" class="btn btn-outline btn-sm">↶ Отменить</button></div><p class="small-note">${requireLabels?'Выдели объект → подпиши его ниже → повтори для остальных. Введи название объекта. Принимаются эталонные названия и предусмотренные варианты.':'Начни в верхнем левом углу объекта и проведи к нижнему правому. Рамки проверяются по IoU.'}</p>${requireLabels?'<div id="userBoxLabels" class="box-label-list user-box-labels"></div>':''}`;
+ $('controls').innerHTML=`${t.id==='custom-1792594838730-7lvf'?'<p class="small-note"><b>Версия задания: shoes-6 · Эталон: 6 пар обуви.</b></p>':''}<div class="toolrow"><strong class="field-label">Нарисовано рамок: <span id="numRects">0</span></strong><button id="undoRect" class="btn btn-outline btn-sm">↶ Отменить</button></div><p class="small-note">${requireLabels?'Выдели объект → подпиши его ниже → повтори для остальных. Введи название объекта. Принимаются эталонные названия и предусмотренные варианты.':'Начни в верхнем левом углу объекта и проведи к нижнему правому. Рамки проверяются по IoU.'}</p>${requireLabels?'<div id="userBoxLabels" class="box-label-list user-box-labels"></div>':''}`;
  $('undoRect').onclick=()=>{currentRects.pop();drawRects()};
  const svg=$('stage').querySelector('svg');
  svg.addEventListener('pointerdown',e=>{if(e.button!==0&&e.pointerType==='mouse')return;const p=locate(e,svg);drawing={x0:p.x,y0:p.y};svg.setPointerCapture(e.pointerId);showDraft({x:p.x,y:p.y,w:0,h:0})});
