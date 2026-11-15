@@ -276,7 +276,7 @@ const studentTaskOverrides={
   why:'Ответ признаёт риск самоповреждения и предлагает обратиться за поддержкой, не приводя вымышленных телефонов.',
   policyId:'S5'
  },
- 'custom-1794174299526-wa6s':{instruction:'Обведи все названия частей двигателя и подпиши их. Порядок выделения свободный.'}
+ 'custom-1794174299526-wa6s':{instruction:'Обведи все 11 подписей частей двигателя, включая «Коромысло» (№11), и подпиши каждую рамку. Обводи названия на схеме, не механические детали.',rules:'Каждая подпись — отдельная рамка. Можно обводить сам текст без кружка с номером. Порядок рамок не важен.'}
 };
 // Student-only grading corrections. Keep archived source task shards unchanged.
 const studentBoxLabelAliases={
@@ -565,7 +565,7 @@ function boxesView(t){
  $('stage').innerHTML=boxSvg();
  const requireLabels=needsBoxLabels(t);
  $('stageFoot').textContent=(requireLabels?'Нарисуй рамку вокруг предмета, затем подпиши её в поле ниже.':'Рисуй мышью или пальцем прямо на изображении. Лишнюю рамку можно удалить.')+' Порядок создания рамок не влияет на оценку.';
- $('controls').innerHTML=`${t.id==='custom-1792594838730-7lvf'?'<p class="small-note"><b>Версия задания: shoes-6-v4 · Эталон: 6 пар, включая голубую обувь позади чёрных ботильонов; ботильоны — одна пара.</b></p>':''}<div class="toolrow"><strong class="field-label">Нарисовано рамок: <span id="numRects">0</span></strong><button id="undoRect" class="btn btn-outline btn-sm">↶ Отменить</button></div><p class="small-note">${requireLabels?'Выдели объект → подпиши его ниже → повтори для остальных. Введи название объекта. Принимаются эталонные названия и предусмотренные варианты.':'Начни в верхнем левом углу объекта и проведи к нижнему правому. Рамки проверяются по IoU.'}</p>${requireLabels?'<div id="userBoxLabels" class="box-label-list user-box-labels"></div>':''}`;
+ $('controls').innerHTML=`${t.id==='custom-1792594838730-7lvf'?'<p class="small-note"><b>Версия задания: shoes-6-v4 · Эталон: 6 пар, включая голубую обувь позади чёрных ботильонов; ботильоны — одна пара.</b></p>':''}${t.id==='custom-1794174299526-wa6s'?'<p class="small-note"><b>Версия задания: engine-labels-v2 · 11 подписей · рамки вокруг текста, порядок свободный.</b></p>':''}<div class="toolrow"><strong class="field-label">Нарисовано рамок: <span id="numRects">0</span></strong><button id="undoRect" class="btn btn-outline btn-sm">↶ Отменить</button></div><p class="small-note">${requireLabels?'Выдели объект → подпиши его ниже → повтори для остальных. Введи название объекта. Принимаются эталонные названия и предусмотренные варианты.':'Начни в верхнем левом углу объекта и проведи к нижнему правому. Рамки проверяются по IoU.'}</p>${requireLabels?'<div id="userBoxLabels" class="box-label-list user-box-labels"></div>':''}`;
  $('undoRect').onclick=()=>{currentRects.pop();drawRects()};
  const svg=$('stage').querySelector('svg');
  svg.addEventListener('pointerdown',e=>{if(e.button!==0&&e.pointerType==='mouse')return;const p=locate(e,svg);drawing={x0:p.x,y0:p.y};svg.setPointerCapture(e.pointerId);showDraft({x:p.x,y:p.y,w:0,h:0})});
@@ -584,6 +584,7 @@ function iou(a,b){const w=Math.max(0,Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x)
 function boxesScore(targets,rects,requireLabels=false,order=null,taskId=''){
  const minIoU=0.40;
  const isShoes=taskId==='custom-1792594838730-7lvf' && targets.length===6;
+ const isEngine=taskId==='custom-1794174299526-wa6s' && targets.length===11;
  const accepted=(ref,value)=>{const text=normalizeBoxLabel(value);return !!text&&[ref.label,...(ref.aliases||[])].some(a=>normalizeBoxLabel(a)===text)};
 
 
@@ -606,6 +607,25 @@ function boxesScore(targets,rects,requireLabels=false,order=null,taskId=''){
      // Both black boots constitute ONE pair; a box around just one boot is insufficient.
      const spansPair=rect.w>=42&&rect.h>=38&&rect.x<=463&&rect.x+rect.w>=481;
      return spansPair&&exactIoU>=minIoU?{i,j,score:exactIoU,matchedBy:'pair-IoU'}:null;
+   }
+   if(isEngine){
+     // The source rubric encloses labels AND some number bubbles/whitespace.
+     // A student may legitimately outline the printed words more tightly.
+     if(exactIoU>=minIoU)return {i,j,score:exactIoU,matchedBy:'IoU'};
+     const centerX=rect.x+rect.w/2,centerY=rect.y+rect.h/2;
+     const centerInside=centerX>=ref.x&&centerX<=ref.x+ref.w
+       &&centerY>=ref.y&&centerY<=ref.y+ref.h;
+     const minWidth=Math.max(18,ref.w*.33);
+     const minHeight=Math.max(12,ref.h*.24);
+     const reasonable=rect.w>=minWidth&&rect.h>=minHeight
+       &&rect.w<=ref.w*1.25&&rect.h<=ref.h*1.45;
+     const intersectionW=Math.max(0,Math.min(rect.x+rect.w,ref.x+ref.w)-Math.max(rect.x,ref.x));
+     const intersectionH=Math.max(0,Math.min(rect.y+rect.h,ref.y+ref.h)-Math.max(rect.y,ref.y));
+     const studentBoxCoverage=intersectionW*intersectionH/Math.max(1,rect.w*rect.h);
+     if(centerInside&&reasonable&&studentBoxCoverage>=0.75){
+       return {i,j,score:minIoU,matchedBy:'tight-text'};
+     }
+     return null;
    }
    return exactIoU>=minIoU?{i,j,score:exactIoU,matchedBy:'IoU'}:null;
  }
@@ -645,7 +665,7 @@ function check(t){if(section==='audio'){checkAudioTask(t);return}if(section==='c
    markDone(t.id);
    showFeedback('good',isShoeTask?
      `Правильно! Найдено <b>${score.good} из ${t.targets.length}</b> пар обуви. Подписи верные: <b>${score.labelsCorrect} из ${t.targets.length}</b>.`:
-     `Правильно! Найдено <b>${score.good}</b> из ${t.targets.length} объектов. ${labeled?`Верные подписи: <b>${score.labelsCorrect} из ${t.targets.length}</b>. `:''}Средний IoU: <b>${Math.round(score.mean*100)}%</b>.`);
+     `Правильно! Найдено <b>${score.good}</b> из ${t.targets.length} объектов. ${labeled?`Верные подписи: <b>${score.labelsCorrect} из ${t.targets.length}</b>. `:''}${t.id==='custom-1794174299526-wa6s'?'Все 11 подписей распознаны по положению и названию.':`Средний IoU: <b>${Math.round(score.mean*100)}%</b>.`}`);
  }else{
    const mismatch=labeled?score.details.filter(x=>!x.labelOk).map(x=>x.i+1):[];
    const missed=score.unmatchedRects.map(i=>i+1);

@@ -160,6 +160,71 @@ const { chromium } = require('playwright');
     assert.equal((await page.locator('#numRects').innerText()).trim(), '1');
     console.log('Small visible-fragment pointer drawing OK.');
 
+    // Engine diagram: 11 individually labeled parts, including rocker arm #11.
+    // Source contains 'Выпускной клапан' at the left inlet; the student override corrects it.
+    const engineTest = await page.evaluate(() => {
+      const t = getTasks('boxes').find(x => x.id === 'custom-1794174299526-wa6s');
+      const refs = t.targets.map(r => ({ ...r }));
+      const tight = refs.map(r => ({
+        x: r.x + r.w*.18, y: r.y + r.h*.23,
+        w: r.w*.64, h: r.h*.54, label: r.label
+      }));
+      const score = boxes => boxesScore(t.targets, boxes, true, null, t.id);
+      const wrongValve = tight.map(r => ({...r}));
+      wrongValve[3].label='Выпускной клапан';
+      const wrongPlace=tight.map(r=>({...r}));
+      wrongPlace[3].x+=180;
+      const tiny=tight.map(r=>({...r}));
+      tiny[4].w=7; tiny[4].h=6;
+      const duplicate=tight.map(r=>({...r}));
+      duplicate[10]={...duplicate[9]};
+      const aliases=tight.map(r=>({...r}));
+      aliases[5].label='распредвал';
+      const blank=tight.map(r=>({...r}));
+      blank[0].label='';
+      return {
+        count:t.targets.length,
+        labels:t.targets.map(r=>r.label),
+        exact:score(refs).complete,
+        tight:score(tight).complete,
+        reversed:score([...tight].reverse()).complete,
+        alias:score(aliases).complete,
+        missed:score(tight.slice(1)).complete,
+        extra:score([...tight,{x:700,y:400,w:22,h:15,label:'Поддон'}]).complete,
+        swappedValve:score(wrongValve).complete,
+        wrongPlace:score(wrongPlace).complete,
+        tooSmall:score(tiny).complete,
+        duplicated:score(duplicate).complete,
+        blankLabel:score(blank).complete
+      };
+    });
+    assert.equal(engineTest.count, 11);
+    assert.deepEqual(engineTest.labels, [
+      'Поддон','Шатун','Цилиндр','Впускной клапан','Свеча зажигания',
+      'Распределительный вал','Выпускной клапан','Поршень',
+      'Поршневые кольца','Коленчатый вал','Коромысло'
+    ]);
+    assert.deepEqual(
+      Object.fromEntries(Object.entries(engineTest).filter(([key])=>!['count','labels'].includes(key))),
+      {exact:true,tight:true,reversed:true,alias:true,missed:false,extra:false,
+       swappedValve:false,wrongPlace:false,tooSmall:false,duplicated:false,blankLabel:false}
+    );
+    // End-to-end submission with realistic tight boxes and arbitrary creation order.
+    const engineIndex=await page.evaluate(()=>
+      getTasks('boxes').findIndex(t=>t.id==='custom-1794174299526-wa6s'));
+    await page.evaluate(index=>{
+      go('boxes',index);
+      const t=getTasks('boxes')[index];
+      currentRects=[...t.targets].reverse().map(r=>({
+        x:r.x+r.w*.18,y:r.y+r.h*.23,w:r.w*.64,h:r.h*.54,label:r.label
+      }));
+      drawRects();
+    },engineIndex);
+    assert.equal((await page.locator('#numRects').innerText()).trim(),'11');
+    await page.locator('#checkBtn').click();
+    assert.match(await page.locator('#feedback').getAttribute('class'),/good/);
+    console.log('Engine 11 labels, tight rectangles, aliases and false-positive controls OK.');
+
     // Explicitly test one invalid and one valid timestamp submission.
     const audioIndex = await page.evaluate(() => getTasks('audio').findIndex(t => t.id === 'custom-1793884339947-fy05'));
     assert.ok(audioIndex >= 0);
