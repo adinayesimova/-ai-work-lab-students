@@ -276,6 +276,14 @@ let showExampleTasks=true;
 custom=custom.map(t=>t.kind==='audio'&&Array.isArray(t.sequence)?{...t,kind:'audio-event'}:t);
 // Student-only task corrections. The 79 archival source tasks remain unchanged.
 const studentTaskOverrides={
+ 'custom-1793894115765-gvg9':{
+  instruction:'Прослушай запись и напиши имя героя и его занятие.',
+  rules:'Имя: Джон Дилинджер или Джон Диллинджер. Работа: грабит банки.',
+  entities:[
+   {label:'Имя',answers:['Джон Дилинджер','Джон Диллинджер']},
+   {label:'Работа',answers:['грабит банки']}
+  ]
+ },
  'custom-1793212548486-adx3':{requireSpeakers:true},
  'custom-1793883197184-civr':{requireSpeakers:true},
  'custom-1793884339947-fy05':{

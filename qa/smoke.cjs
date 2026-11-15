@@ -441,6 +441,50 @@ const { chromium } = require('playwright');
     assert.match(await page.locator('#feedback').getAttribute('class'), /good/);
     console.log('Timestamp input: wrong rejected, exact accepted.');
 
+    // Last Audio Annotation exercise: both accepted name spellings and exact job.
+    const lastAudio=await page.evaluate(()=>{
+      const tasks=getTasks('audio');
+      const t=tasks[tasks.length-1];
+      return {count:tasks.length,id:t.id,mode:t.audioMode,entities:t.entities,
+        title:t.title};
+    });
+    assert.equal(lastAudio.count,10);
+    assert.equal(lastAudio.id,'custom-1793894115765-gvg9');
+    assert.equal(lastAudio.mode,'entities');
+    assert.deepEqual(lastAudio.entities,[
+      {label:'Имя',answers:['Джон Дилинджер','Джон Диллинджер']},
+      {label:'Работа',answers:['грабит банки']}
+    ]);
+    await page.goto('http://127.0.0.1:8765/?task=custom-1793894115765-gvg9',
+      {waitUntil:'load',timeout:45000});
+    assert.equal(await page.evaluate(()=>getTasks(section)[taskIndex].id),
+      'custom-1793894115765-gvg9');
+    assert.equal(await page.locator('[id^=audioEntity]').count(),2);
+    for(const name of ['Джон Дилинджер','Джон Диллинджер']){
+      await page.locator('#audioEntity0').fill(name);
+      await page.locator('#audioEntity1').fill('грабит банки');
+      await page.locator('#checkBtn').click();
+      assert.match(await page.locator('#feedback').getAttribute('class'),/good/,
+        'Correct name must be accepted: '+name);
+    }
+    await page.locator('#audioEntity0').fill('Другой человек');
+    await page.locator('#audioEntity1').fill('грабит банки');
+    await page.locator('#checkBtn').click();
+    assert.match(await page.locator('#feedback').getAttribute('class'),/bad/);
+    assert.match(await page.locator('#feedback').innerText(),/Имя/);
+    await page.locator('#audioEntity0').fill('Джон Диллинджер');
+    await page.locator('#audioEntity1').fill('банкир');
+    await page.locator('#checkBtn').click();
+    assert.match(await page.locator('#feedback').getAttribute('class'),/bad/);
+    assert.match(await page.locator('#feedback').innerText(),/Работа/);
+    await page.locator('#audioEntity1').fill('грабитель');
+    await page.locator('#checkBtn').click();
+    assert.match(await page.locator('#feedback').getAttribute('class'),/bad/);
+    await page.locator('#audioEntity1').fill('ГРАБИТ БАНКИ');
+    await page.locator('#checkBtn').click();
+    assert.match(await page.locator('#feedback').getAttribute('class'),/good/);
+    console.log('Last Audio Annotation: both John Dillinger spellings and bank-robbing job validated.');
+
     // Speaker labels must be present when required.
     const speakerIndex = await page.evaluate(() => getTasks('audio').findIndex(t => t.id === 'custom-1793212548486-adx3'));
     await page.evaluate(index => go('audio', index), speakerIndex);
