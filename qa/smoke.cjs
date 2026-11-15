@@ -232,7 +232,7 @@ const { chromium } = require('playwright');
         oldObjects:['яблоко','груша','чашка','бутылка'].some(s=>t.facts.some(f=>f.object===s))};
     });
     assert.equal(stillLife.title,'Предметы на столе');
-    assert.ok(stillLife.image.includes('red-table-still-life.avif'));
+    assert.ok(stillLife.image.includes('red-table-still-life-hq.webp'));
     assert.deepEqual(stillLife.objects,
       ['кактус','блокнот','карандаш','ластик','очки','телефон','пончик','лампа']);
     assert.equal(stillLife.groups,6);
@@ -246,7 +246,7 @@ const { chromium } = require('playwright');
       });
       return {naturalWidth:img.naturalWidth,naturalHeight:img.naturalHeight};
     });
-    assert.ok(loadedImage.naturalWidth>=600&&loadedImage.naturalHeight>=400,
+    assert.ok(loadedImage.naturalWidth>=1500&&loadedImage.naturalHeight>=1000,
       'colour-2 illustration failed to decode in Chrome: '+JSON.stringify(loadedImage));
     const rightAnswer='На красном столе стоят зелёный кактус и красная настольная лампа. Здесь лежат красный блокнот, жёлтый карандаш и белый ластик. Справа расположены бежевые очки, красный телефон и розовый пончик на белой тарелке.';
     await page.evaluate(()=>{selectedColours=new Set(['красный','зелёный','жёлтый','розовый','белый','бежевый']);});
