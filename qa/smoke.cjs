@@ -107,34 +107,58 @@ const { chromium } = require('playwright');
     assert.equal(ordering.reversed, true, 'box creation order must not matter');
     console.log('Bounding-box drawing, undo and order independence OK.');
 
-    // Regression for close black-shoe bounding boxes (actual shoes-6 task).
-    // More permissive placement must still reject duplicates, extras and incorrect names.
+    // Regression: the blue shoes are partially hidden behind a SINGLE pair of black boots.
     const shoesTest = await page.evaluate(() => {
       const task = getTasks('boxes').find(x => x.id === 'custom-1792594838730-7lvf');
       const reference = task.targets.map(t => ({ ...t, label: 'туфли' }));
       const user = reference.map(r => ({ ...r }));
-      user[4] = { x: 428, y: 321, w: 22, h: 47, label: 'туфли' };
-      user[5] = { x: 463, y: 328, w: 49, h: 61, label: 'туфли' };
+      user[4] = { x: 427, y: 335, w: 12, h: 10, label: 'туфли' }; // tiny blue fragment
+      user[5] = { x: 440, y: 335, w: 57, h: 57, label: 'туфли' }; // both black boots
       const grade = boxes => boxesScore(task.targets, boxes, true, null, task.id);
-      const badName = user.map(r => ({ ...r })); badName[5].label = 'сумка';
+      const badName = user.map(r => ({ ...r })); badName[4].label = 'сумка';
       const duplicate = user.map(r => ({ ...r })); duplicate[4] = { ...duplicate[5] };
+      const twoSeparateBlackBoots = [...user.slice(0, 4),
+        { x: 439, y: 338, w: 33, h: 56, label: 'туфли' },
+        { x: 468, y: 334, w: 35, h: 60, label: 'туфли' }];
+      const hugeBlueBox = user.map(r => ({ ...r })); hugeBlueBox[4] = { x: 390, y: 320, w: 110, h: 75, label: 'туфли' };
+      const displacedBlueBox = user.map(r => ({ ...r })); displacedBlueBox[4] = { x: 520, y: 340, w: 12, h: 10, label: 'туфли' };
       return {
         count: task.targets.length,
         exact: grade(reference).complete,
-        narrow: grade(user).complete,
-        narrowGood: grade(user).good,
+        tinyBlue: grade(user).complete,
+        tinyBlueGood: grade(user).good,
         reversed: grade([...user].reverse()).complete,
         missing: grade(user.slice(0, 5)).complete,
         extra: grade([...user, { x: 620, y: 30, w: 20, h: 20, label: 'туфли' }]).complete,
         duplicated: grade(duplicate).complete,
+        twoBlackBoots: grade(twoSeparateBlackBoots).complete,
+        hugeBlueBox: grade(hugeBlueBox).complete,
+        displacedBlueBox: grade(displacedBlueBox).complete,
         wrongLabel: grade(badName).complete
       };
     });
     assert.deepEqual(shoesTest,
-      { count: 6, exact: true, narrow: true, narrowGood: 6, reversed: true,
-        missing: false, extra: false, duplicated: false, wrongLabel: false });
-    console.log('Six-shoe screenshot regression, labels and false-positive controls OK.');
+      { count: 6, exact: true, tinyBlue: true, tinyBlueGood: 6, reversed: true,
+        missing: false, extra: false, duplicated: false, twoBlackBoots: false,
+        hugeBlueBox: false, displacedBlueBox: false, wrongLabel: false });
+    console.log('Occluded blue pair and single black-boot pair regression OK.');
 
+    // Real small pointer drag must be accepted in this task.
+    const shoeIndex = await page.evaluate(() =>
+      getTasks('boxes').findIndex(t => t.id === 'custom-1792594838730-7lvf'));
+    await page.evaluate(index => go('boxes', index), shoeIndex);
+    const shoeStage = await page.locator('#stage svg').boundingBox();
+    assert.ok(shoeStage, 'six-shoe SVG is visible');
+    const p1 = { x: shoeStage.x + shoeStage.width * 427 / 760,
+                 y: shoeStage.y + shoeStage.height * 335 / 430 };
+    const p2 = { x: shoeStage.x + shoeStage.width * 439 / 760,
+                 y: shoeStage.y + shoeStage.height * 345 / 430 };
+    await page.mouse.move(p1.x, p1.y);
+    await page.mouse.down();
+    await page.mouse.move(p2.x, p2.y, { steps: 6 });
+    await page.mouse.up();
+    assert.equal((await page.locator('#numRects').innerText()).trim(), '1');
+    console.log('Small visible-fragment pointer drawing OK.');
 
     // Explicitly test one invalid and one valid timestamp submission.
     const audioIndex = await page.evaluate(() => getTasks('audio').findIndex(t => t.id === 'custom-1793884339947-fy05'));

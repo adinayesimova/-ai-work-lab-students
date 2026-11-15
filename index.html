@@ -565,12 +565,12 @@ function boxesView(t){
  $('stage').innerHTML=boxSvg();
  const requireLabels=needsBoxLabels(t);
  $('stageFoot').textContent=(requireLabels?'Нарисуй рамку вокруг предмета, затем подпиши её в поле ниже.':'Рисуй мышью или пальцем прямо на изображении. Лишнюю рамку можно удалить.')+' Порядок создания рамок не влияет на оценку.';
- $('controls').innerHTML=`${t.id==='custom-1792594838730-7lvf'?'<p class="small-note"><b>Версия задания: shoes-6-v3 · Эталон: 6 пар обуви · отдельная рамка для каждой пары, включая две правые.</b></p>':''}<div class="toolrow"><strong class="field-label">Нарисовано рамок: <span id="numRects">0</span></strong><button id="undoRect" class="btn btn-outline btn-sm">↶ Отменить</button></div><p class="small-note">${requireLabels?'Выдели объект → подпиши его ниже → повтори для остальных. Введи название объекта. Принимаются эталонные названия и предусмотренные варианты.':'Начни в верхнем левом углу объекта и проведи к нижнему правому. Рамки проверяются по IoU.'}</p>${requireLabels?'<div id="userBoxLabels" class="box-label-list user-box-labels"></div>':''}`;
+ $('controls').innerHTML=`${t.id==='custom-1792594838730-7lvf'?'<p class="small-note"><b>Версия задания: shoes-6-v4 · Эталон: 6 пар, включая голубую обувь позади чёрных ботильонов; ботильоны — одна пара.</b></p>':''}<div class="toolrow"><strong class="field-label">Нарисовано рамок: <span id="numRects">0</span></strong><button id="undoRect" class="btn btn-outline btn-sm">↶ Отменить</button></div><p class="small-note">${requireLabels?'Выдели объект → подпиши его ниже → повтори для остальных. Введи название объекта. Принимаются эталонные названия и предусмотренные варианты.':'Начни в верхнем левом углу объекта и проведи к нижнему правому. Рамки проверяются по IoU.'}</p>${requireLabels?'<div id="userBoxLabels" class="box-label-list user-box-labels"></div>':''}`;
  $('undoRect').onclick=()=>{currentRects.pop();drawRects()};
  const svg=$('stage').querySelector('svg');
  svg.addEventListener('pointerdown',e=>{if(e.button!==0&&e.pointerType==='mouse')return;const p=locate(e,svg);drawing={x0:p.x,y0:p.y};svg.setPointerCapture(e.pointerId);showDraft({x:p.x,y:p.y,w:0,h:0})});
  svg.addEventListener('pointermove',e=>{if(!drawing)return;const p=locate(e,svg);showDraft({x:Math.min(drawing.x0,p.x),y:Math.min(drawing.y0,p.y),w:Math.abs(drawing.x0-p.x),h:Math.abs(drawing.y0-p.y)})});
- svg.addEventListener('pointerup',e=>{if(!drawing)return;const p=locate(e,svg);const r={x:Math.min(drawing.x0,p.x),y:Math.min(drawing.y0,p.y),w:Math.abs(drawing.x0-p.x),h:Math.abs(drawing.y0-p.y)};drawing=null;showDraft(null);if(r.w>=16&&r.h>=16){currentRects.push({...r,label:''});drawRects();if(requireLabels)$('userBoxLabels')?.querySelector(`input[data-user-label="${currentRects.length-1}"]`)?.focus()}});
+ svg.addEventListener('pointerup',e=>{if(!drawing)return;const p=locate(e,svg);const r={x:Math.min(drawing.x0,p.x),y:Math.min(drawing.y0,p.y),w:Math.abs(drawing.x0-p.x),h:Math.abs(drawing.y0-p.y)};drawing=null;showDraft(null);if(r.w>=(t.id==='custom-1792594838730-7lvf'?7:16)&&r.h>=(t.id==='custom-1792594838730-7lvf'?7:16)){currentRects.push({...r,label:''});drawRects();if(requireLabels)$('userBoxLabels')?.querySelector(`input[data-user-label="${currentRects.length-1}"]`)?.focus()}});
  svg.addEventListener('pointercancel',()=>{drawing=null;showDraft(null)});
  $('moduleInfo').innerHTML=`<b>Bounding Boxes${requireLabels?' + Text Labels':''}</b> — ${requireLabels?'каждый объект получает рамку и текстовую подпись. Проверяем и правильность расположения (IoU ≥ 0,4), и название объекта; регистр букв и ё/е не влияют на ответ.':'выделение объектов прямоугольниками. Проверяется соответствие рамок эталонным объектам (IoU ≥ 0,4).'}`;
  drawRects();
@@ -586,21 +586,26 @@ function boxesScore(targets,rects,requireLabels=false,order=null,taskId=''){
  const isShoes=taskId==='custom-1792594838730-7lvf' && targets.length===6;
  const accepted=(ref,value)=>{const text=normalizeBoxLabel(value);return !!text&&[ref.label,...(ref.aliases||[])].some(a=>normalizeBoxLabel(a)===text)};
 
+
  function candidate(rect,ref,j,i){
    const exactIoU=iou(rect,ref);
-   if(isShoes&&j>=4){
-     // Two close-up black-shoe regions: accept compact boxes centered on each distinct shoe.
-     // Separate the areas at the midpoint, so duplicating the same shoe cannot score twice.
+   if(isShoes&&j===4){
+     // Blue shoes partially hidden BEHIND black boots; mark the visible fragment.
      const centerX=rect.x+rect.w/2,centerY=rect.y+rect.h/2;
-     const refCenterX=ref.x+ref.w/2,refCenterY=ref.y+ref.h/2;
-     const boundary=((targets[4].x+targets[4].w/2)+(targets[5].x+targets[5].w/2))/2;
-     const inOwnArea=j===4?centerX<boundary:centerX>=boundary;
-     const compact=rect.w>=10&&rect.h>=15&&rect.w<=90&&rect.h<=115;
-     const near=Math.abs(centerX-refCenterX)<=45&&Math.abs(centerY-refCenterY)<=60;
-     if(inOwnArea&&compact&&near){
-       return {i,j,score:Math.max(minIoU,exactIoU),matchedBy:exactIoU>=minIoU?'IoU':'shoe-position'};
+     const visible=rect.w>=7&&rect.h>=7&&rect.w<=46&&rect.h<=43
+       &&centerX>=421&&centerX<=454&&centerY>=327&&centerY<=360;
+     const overlapW=Math.max(0,Math.min(rect.x+rect.w,ref.x+ref.w)-Math.max(rect.x,ref.x));
+     const overlapH=Math.max(0,Math.min(rect.y+rect.h,ref.y+ref.h)-Math.max(rect.y,ref.y));
+     const overlapFraction=overlapW*overlapH/Math.max(1,rect.w*rect.h);
+     if(visible&&overlapFraction>=0.20){
+       return {i,j,score:Math.max(minIoU,Math.min(1,overlapFraction)),matchedBy:'visible-fragment'};
      }
      return null;
+   }
+   if(isShoes&&j===5){
+     // Both black boots constitute ONE pair; a box around just one boot is insufficient.
+     const spansPair=rect.w>=42&&rect.h>=38&&rect.x<=463&&rect.x+rect.w>=481;
+     return spansPair&&exactIoU>=minIoU?{i,j,score:exactIoU,matchedBy:'pair-IoU'}:null;
    }
    return exactIoU>=minIoU?{i,j,score:exactIoU,matchedBy:'IoU'}:null;
  }
@@ -645,7 +650,7 @@ function check(t){if(section==='audio'){checkAudioTask(t);return}if(section==='c
    const mismatch=labeled?score.details.filter(x=>!x.labelOk).map(x=>x.i+1):[];
    const missed=score.unmatchedRects.map(i=>i+1);
    const placementHint=isShoeTask?'(рамка вне области своей пары обуви или лишняя рамка)':'(IoU ниже 0,40 или лишняя рамка)';
-   const required=isShoeTask?'Для зачёта обведи каждую из шести пар отдельной рамкой, включая две правые.':'Для зачёта нужна отдельная рамка для каждого объекта (IoU ≥ 0,40).';
+   const required=isShoeTask?'Для зачёта обведи каждую из шести пар: маленькая рамка вокруг видимой части голубой обуви позади ботильонов и одна общая рамка вокруг обоих чёрных ботильонов.':'Для зачёта нужна отдельная рамка для каждого объекта (IoU ≥ 0,40).';
    showFeedback('bad',`Рамки в допуске: <b>${score.good} из ${t.targets.length}</b>, всего нарисовано <b>${currentRects.length}</b>. ${missed.length?'Проверь расположение рамок № '+missed.join(', ')+' '+placementHint+'. ':''}${labeled?`Подписи совпали: <b>${score.labelsCorrect} из ${t.targets.length}</b>. ${mismatch.length?'Проверь текст подписи рамок № '+mismatch.join(', ')+'. ':''}`:''}${required} ${labeled?'Нужна корректная подпись каждой рамки. ':''}Порядок выделения не влияет на зачёт.`);
  }
  return;
