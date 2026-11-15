@@ -653,7 +653,14 @@ function check(t){if(section==='audio'){checkAudioTask(t);return}if(section==='c
 if(answer===t.answer){markDone(t.id);showFeedback('good',`Верно! ${section==='classify'||section==='text'?esc(t.why):`Правильный ответ: <b>${esc(t.answer)}</b>.`}`)}else{const old=saved[t.id]||{};saved[t.id]={...old,attempts:(old.attempts||0)+1};persist();showFeedback('bad',section==='text'||section==='classify'?'Не совсем. Перечитай критерии и попробуй ещё раз.':'Количество пока неверное. Проверь правило и попробуй пересчитать.')}
 }
 
-$('homeBtn').onclick=()=>go('home');$('brand').onclick=()=>go('home');go('home');
+$('homeBtn').onclick=()=>go('home');$('brand').onclick=()=>go('home');
+const linkedTaskId = new URLSearchParams(window.location.search).get('task');
+const linkedModule = linkedTaskId && modules.find(m => getTasks(m.id).some(t => t.id === linkedTaskId));
+if(linkedModule){
+  go(linkedModule.id, getTasks(linkedModule.id).findIndex(t => t.id === linkedTaskId));
+}else{
+  go('home');
+}
 </script>
 </body>
 </html>
