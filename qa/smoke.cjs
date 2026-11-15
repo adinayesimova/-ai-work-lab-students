@@ -517,6 +517,43 @@ const { chromium } = require('playwright');
     assert.match(await page.locator('#feedback').getAttribute('class'),/good/);
     console.log('Last Audio Annotation: both John Dillinger spellings and bank-robbing job validated.');
 
+    // Speaker sequence #8: user-corrected nine utterances, including final Voice 3.
+    const speakerSequenceTask=await page.evaluate(()=>{
+      const list=getTasks('audio'),t=list.find(x=>x.id==='custom-1793893188334-hy8s');
+      return {index:list.indexOf(t),length:list.length,title:t.title,
+        mode:t.audioMode,sequence:t.speakerSequence};
+    });
+    const nineVoices=['Голос 1','Голос 2','Голос 1','Голос 2','Голос 1',
+      'Голос 2','Голос 3','Голос 2','Голос 3'];
+    assert.equal(speakerSequenceTask.index,7,'screenshot shows task 8 / 10');
+    assert.equal(speakerSequenceTask.length,10);
+    assert.equal(speakerSequenceTask.mode,'speakers');
+    assert.equal(speakerSequenceTask.title,'Последовательность говорящих');
+    assert.deepEqual(speakerSequenceTask.sequence,nineVoices);
+    await page.goto('http://127.0.0.1:8765/?task=custom-1793893188334-hy8s',
+      {waitUntil:'load',timeout:45000});
+    assert.equal(await page.evaluate(()=>getTasks(section)[taskIndex].id),'custom-1793893188334-hy8s');
+    const speakerText=page.locator('#audioSpeakerAnswer');
+    const speakerFeedback=page.locator('#feedback');
+    assert.equal(await speakerText.count(),1);
+    assert.ok(!(await page.locator('.quiz').innerText()).includes('Голос 3 → Голос 2 → Голос 3'),
+      'the answer cannot appear before check');
+    await speakerText.fill(nineVoices.slice(0,8).join('\n'));
+    await page.locator('#checkBtn').click();
+    assert.match(await speakerFeedback.getAttribute('class'),/bad/,'old 8-line answer fails');
+    await speakerText.fill([...nineVoices.slice(0,8),'Голос 1'].join('\n'));
+    await page.locator('#checkBtn').click();
+    assert.match(await speakerFeedback.getAttribute('class'),/bad/,'wrong ninth speaker fails');
+    await speakerText.fill(nineVoices.join('\n'));
+    await page.locator('#checkBtn').click();
+    assert.match(await speakerFeedback.getAttribute('class'),/good/,'correct nine-line answer passes');
+    assert.match(await speakerFeedback.innerText(),/Голос 3 → Голос 2 → Голос 3/);
+    // Mixed-case spellings of speaker IDs should also be recognized.
+    await speakerText.fill(nineVoices.map(x=>x.toLowerCase()).join('\n'));
+    await page.locator('#checkBtn').click();
+    assert.match(await speakerFeedback.getAttribute('class'),/good/);
+    console.log('Speaker sequence #8 corrected to nine turns, old eight turns rejected.');
+
     // Speaker labels must be present when required.
     const speakerIndex = await page.evaluate(() => getTasks('audio').findIndex(t => t.id === 'custom-1793212548486-adx3'));
     await page.evaluate(index => go('audio', index), speakerIndex);
