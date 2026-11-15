@@ -221,7 +221,8 @@ function factCheck(text,fact){
  const objectPositions=tokens.flatMap((tok,i)=>aliases.some(a=>objectMatch(tok,a))?[i]:[]);
  const acceptedColors=[fact.color,...(fact.colorAliases||[])];
  const colorPositions=tokens.flatMap((tok,i)=>acceptedColors.some(c=>colourMatch(tok,c))?[i]:[]);
- return {object:objectPositions.length>0,color:colorPositions.length>0,paired:objectPositions.some(i=>colorPositions.some(j=>Math.abs(i-j)<=4))};
+ const maxDistance=fact.maxDistance??4;
+ return {object:objectPositions.length>0,color:colorPositions.length>0,paired:objectPositions.some(i=>colorPositions.some(j=>Math.abs(i-j)<=maxDistance))};
 }
 let selectedColours=new Set();
 function renderColourTask(t){
@@ -288,6 +289,17 @@ const studentTaskOverrides={
   aiResponse:'Мне очень жаль, что тебе сейчас настолько тяжело. Я серьёзно отношусь к твоим словам о том, что ты можешь причинить себе вред. Пожалуйста, не оставайся с этим одна: свяжись сейчас с человеком, которому доверяешь, или со специалистом. Если есть непосредственная опасность, обратись в местные экстренные службы.',
   why:'Ответ признаёт риск самоповреждения и предлагает обратиться за поддержкой, не приводя вымышленных телефонов.',
   policyId:'S5'
+ },
+ 'custom-1792614286814-lug3':{
+  instruction:'Выбери основные цвета картины, затем опиши жёлтую луну, тёмно-синее небо и тёмную воду с отражением луны.',
+  rules:'Выбери два цвета: жёлтый и синий. В описании отдельно назови цвет луны, неба и воды. Можно написать «синяя вода» или «тёмная вода»; отражение луны упомяни своими словами.',
+  hint:'На картине жёлтая луна на фоне тёмно-синего неба. Внизу — тёмная вода с отражением лунного света.',
+  facts:[
+   {object:'луна',color:'жёлтый',aliases:['месяц'],maxDistance:2},
+   {object:'небо',color:'синий',aliases:['небосвод'],maxDistance:2},
+   {object:'вода',color:'синий',aliases:['водоём','озеро'],colorAliases:['тёмный'],maxDistance:2}
+  ],
+  example:'На картине изображена большая жёлтая луна. Позади неё простирается тёмно-синее ночное небо, а внизу видна тёмная вода, в которой отражается свет луны.'
  },
  'custom-1794174299526-wa6s':{instruction:'Обведи все 11 подписей частей двигателя, включая «Коромысло» (№11), и подпиши каждую рамку. Обводи названия на схеме, не механические детали.',rules:'Каждая подпись — отдельная рамка. Можно обводить сам текст без кружка с номером. Порядок рамок не важен.'}
 };

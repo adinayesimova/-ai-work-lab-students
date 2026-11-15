@@ -313,6 +313,62 @@ const { chromium } = require('playwright');
     assert.match(await page.locator('#feedback').getAttribute('class'),/good/);
     console.log('Colour Detection #2 strict six-colour selection and brown-glasses reference OK.');
 
+
+    // Moon scene: sky and water must be separate blue objects in the text.
+    // Preserve exactly two selectable colours (blue and yellow), despite three object-colour facts.
+    const moonTask = await page.evaluate(()=>{
+      const t=getTasks('colour').find(x=>x.id==='custom-1792614286814-lug3');
+      return {
+        title:t.title,correctColors:t.correctColors,
+        objects:t.facts.map(f=>f.object),colors:t.facts.map(f=>f.color),
+        darkWater:t.facts.find(f=>f.object==='вода').colorAliases,
+        example:t.example
+      };
+    });
+    assert.equal(moonTask.title,'Луна');
+    assert.deepEqual(moonTask.correctColors,['синий','жёлтый']);
+    assert.deepEqual(moonTask.objects,['луна','небо','вода']);
+    assert.deepEqual(moonTask.colors,['жёлтый','синий','синий']);
+    assert.deepEqual(moonTask.darkWater,['тёмный']);
+    assert.match(moonTask.example,/тёмно-синее ночное небо/);
+    assert.match(moonTask.example,/тёмная вода/);
+    assert.match(moonTask.example,/отражается свет луны/);
+    await page.goto('http://127.0.0.1:8765/?task=custom-1792614286814-lug3',
+      {waitUntil:'load',timeout:45000});
+    assert.equal(await page.evaluate(()=>getTasks(section)[taskIndex].id),
+      'custom-1792614286814-lug3');
+    for(const c of ['синий','жёлтый']) {
+      const index=await page.evaluate(colour=>getTasks(section)[taskIndex].palette.indexOf(colour),c);
+      assert.ok(index>=0);
+      await page.locator('[data-select-colour="'+index+'"]').click();
+    }
+    const moonExample=moonTask.example;
+    await page.locator('#colourDescription').fill(moonExample);
+    await page.locator('#checkBtn').click();
+    assert.match(await page.locator('#feedback').getAttribute('class'),/good/);
+    assert.match(await page.locator('#feedback').innerText(),/3 из 3/);
+    // A blue sky alone must not satisfy the water requirement.
+    await page.locator('#colourDescription').fill(
+      'На картине огромная жёлтая луна, тёмно-синее ночное небо с яркими звёздами. Вдали стоят деревья и видны их силуэты.');
+    await page.locator('#checkBtn').click();
+    assert.match(await page.locator('#feedback').getAttribute('class'),/bad/);
+    // A dark body of water alone must not satisfy the separate sky requirement.
+    await page.locator('#colourDescription').fill(
+      'На картине большая жёлтая луна, рядом деревья, а внизу тёмная вода с красивыми отражениями лунного света.');
+    await page.locator('#checkBtn').click();
+    assert.match(await page.locator('#feedback').getAttribute('class'),/bad/);
+    // A concise blue sky with unspecified water colour must not count as two blue facts.
+    await page.locator('#colourDescription').fill(
+      'На картине видна большая жёлтая луна, синее небо и вода с отражениями деревьев в ночном пейзаже.');
+    await page.locator('#checkBtn').click();
+    assert.match(await page.locator('#feedback').getAttribute('class'),/bad/);
+    // Alternate natural description should work without exact example wording.
+    await page.locator('#colourDescription').fill(
+      'Большая жёлтая луна освещает пейзаж, над деревьями синее небо, а внизу синяя вода отражает свет.');
+    await page.locator('#checkBtn').click();
+    assert.match(await page.locator('#feedback').getAttribute('class'),/good/);
+    console.log('Moon scene: yellow moon, independent blue sky and dark water checks OK.');
+
     // Explicitly test one invalid and one valid timestamp submission.
     const audioIndex = await page.evaluate(() => getTasks('audio').findIndex(t => t.id === 'custom-1793884339947-fy05'));
     assert.ok(audioIndex >= 0);
