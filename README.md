@@ -15,7 +15,9 @@ The `data/manifest.json` `taskCount` refers only to the 79 imported exercises st
 ## How to use
 Open **index.html** in a browser (or use the published GitHub Pages website). Select a module, complete exercises, and review the results.
 
-Progress is stored **only in the current browser** using localStorage. Clearing site data or changing browsers/devices may remove progress. There is no student account, remote backup, teacher dashboard, or centralized grade tracking.
+Completion status, manually placed object-counting marks, unfinished inputs, selected colours, bounding boxes, and the last opened exercise are stored **locally in the same browser** using localStorage. Reopening the regular site URL automatically resumes the last exercise. Direct `?task=<id>` links still open a specific exercise.
+
+**Important:** Clearing browser/site data, using incognito/private mode, or changing devices/browsers can lose this progress. There is no cross-device sync, student login, remote backup, teacher dashboard, or centralized grade tracking.
 
 ## Deployment
 This repository is the **student-only** public frontend. For GitHub Pages: Settings → Pages → Deploy from a branch → `main` → `/(root)`.

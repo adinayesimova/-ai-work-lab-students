@@ -566,6 +566,47 @@ const { chromium } = require('playwright');
     assert.match(await page.locator('#feedback').getAttribute('class'), /good/);
     console.log('Speaker omission rejected; labeled transcript accepted.');
 
+    // Resume session across visits and retain unfinished responses without an account.
+    await page.goto('http://127.0.0.1:8765/?task=colour-2',
+      {waitUntil:'load',timeout:45000});
+    await page.locator('#colourDescription').fill(
+      'На красном столе стоят зелёный кактус и красная лампа, рядом лежат другие предметы.');
+    const colourResume=await page.evaluate(()=>
+      getTasks(section)[taskIndex].palette.indexOf('зелёный'));
+    await page.locator('[data-select-colour="'+colourResume+'"]').click();
+    const firstDraft=await page.locator('#colourDescription').inputValue();
+    await page.reload({waitUntil:'load'});
+    assert.equal(await page.evaluate(()=>getTasks(section)[taskIndex].id),'colour-2');
+    assert.equal(await page.locator('#colourDescription').inputValue(),firstDraft);
+    assert.equal(await page.locator('[data-select-colour="'+colourResume+'"]').getAttribute('aria-pressed'),'true');
+    // Use the main course link (without query). It should open the last active task.
+    await page.goto('http://127.0.0.1:8765/',{waitUntil:'load'});
+    assert.equal(await page.evaluate(()=>getTasks(section)[taskIndex].id),'colour-2');
+    assert.equal(await page.locator('#colourDescription').inputValue(),firstDraft);
+    // Resume should track the next exercise, not stick to the originally linked task.
+    await page.locator('#nextBtn').click();
+    const followingId=await page.evaluate(()=>getTasks(section)[taskIndex].id);
+    assert.notEqual(followingId,'colour-2');
+    await page.goto('http://127.0.0.1:8765/',{waitUntil:'load'});
+    assert.equal(await page.evaluate(()=>getTasks(section)[taskIndex].id),followingId);
+    await page.goto('http://127.0.0.1:8765/?task=colour-2',
+      {waitUntil:'load'});
+    assert.equal(await page.locator('#colourDescription').inputValue(),firstDraft);
+    // An unfinished audio entity answer must also be restored without leaking the reference.
+    await page.goto('http://127.0.0.1:8765/?task=custom-1793894115765-gvg9',
+      {waitUntil:'load'});
+    await page.locator('#audioEntity0').fill('Джон Ди...');
+    await page.locator('#audioEntity1').fill('Пытаюсь вспомнить');
+    await page.goto('http://127.0.0.1:8765/',{waitUntil:'load'});
+    assert.equal(await page.evaluate(()=>getTasks(section)[taskIndex].id),
+      'custom-1793894115765-gvg9');
+    assert.equal(await page.locator('#audioEntity0').inputValue(),'Джон Ди...');
+    assert.equal(await page.locator('#audioEntity1').inputValue(),'Пытаюсь вспомнить');
+    assert.equal(await page.locator('[data-revealed-answer]').count(),0);
+    // Existing saved completion flags and annotations survive the new resume logic.
+    assert.ok(await page.evaluate(()=>completed())>=2);
+    console.log('Browser resume: current task, colour choices, text and audio drafts survive reload/revisit.');
+
     // Progress survives a reload in the same browser.
     const savedBefore = await page.evaluate(() => completed());
     assert.ok(savedBefore >= 2, 'at least two tasks completed');

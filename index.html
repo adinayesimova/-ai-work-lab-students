@@ -271,6 +271,12 @@ function downloadSafetyPolicy(){const blob=new Blob([safetyPolicyText],{type:'te
 let editingId=null;let editorRects=[],editorImageData='';const STORE='aiworklab_public_progress_v1';
 function safeGet(k,f){try{return JSON.parse(localStorage.getItem(k))??f}catch{return f}}
 let saved=safeGet(STORE,{}), custom=window.__AI_WORK_LAB_TASKS;
+// Student browser-only resume data is separate from historical completion storage.
+// Never store uploaded media or the answer key inside draft records.
+const RESUME_STORE='aiworklab_public_resume_v1', DRAFT_STORE='aiworklab_public_drafts_v1';
+let drafts=safeGet(DRAFT_STORE,{});
+const saveBrowserData=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value))}catch{}};
+
 let showExampleTasks=true;
 // Legacy audio-event tasks from v0.6 remain in the archive, never shown as transcriptions.
 custom=custom.map(t=>t.kind==='audio'&&Array.isArray(t.sequence)?{...t,kind:'audio-event'}:t);
@@ -380,12 +386,74 @@ function getTasks(id){if(id==='count')return countTasks();const base=id==='boxes
 function completed(){return modules.reduce((acc,m)=>acc+getTasks(m.id).filter(t=>saved[t.id]?.done).length,0)}
 function total(){return modules.reduce((acc,m)=>acc+getTasks(m.id).length,0)}
 function nav(){const list=[{id:'home',title:'Обзор программы',subtitle:'Все направления',icon:'⌂'},...modules.map(m=>({id:m.id,title:m.title,subtitle:m.subtitle,icon:m.icon})),];$('sideNav').innerHTML=list.map(m=>`<button class="navbtn ${section===m.id?'active':''}" data-go="${m.id}"><span class="navicon">${m.icon}</span><span><span class="navtitle">${m.title}</span><span class="navdesc">${m.subtitle}</span></span></button>`).join('');$('sideNav').querySelectorAll('button').forEach(b=>b.onclick=()=>go(b.dataset.go));let d=completed(),t=total();$('sideProgress').textContent=`${d} из ${t} заданий выполнено`;$('sideBar').style.width=(t?d/t*100:0)+'%'}
-function go(to,index=0){if(!['home',...modules.map(m=>m.id)].includes(to))return;section=to;taskIndex=(to==='home')?0:Math.max(0,Math.min(index,getTasks(to).length-1));currentChoice='';currentMultiChoices=new Set();currentRects=[];selectedColours=new Set();drawing=null;nav();render();window.scrollTo({top:0,behavior:'instant'})}
+// Drafts are local to one device and one normal-browser profile.
+function activeTask(){return section==='home'?null:getTasks(section)[taskIndex]||null}
+function saveCurrentDraft(){
+ const t=activeTask();if(!t)return;
+ const fields={};
+ document.querySelectorAll('#controls textarea[id], #controls input[type="text"][id], #controls input[type="number"][id]:not([readonly])')
+   .forEach(el=>{fields[el.id]=el.value});
+ drafts[t.id]={
+  fields,
+  choice:currentChoice,
+  multi:[...currentMultiChoices],
+  colours:[...selectedColours],
+  rects:currentRects.map(r=>({...r})),
+  events:[...audioEventChoices]
+ };
+ saveBrowserData(DRAFT_STORE,drafts);
+}
+function restoreInputFields(t){
+ const fields=drafts[t.id]?.fields||{};
+ document.querySelectorAll('#controls textarea[id], #controls input[type="text"][id], #controls input[type="number"][id]:not([readonly])')
+   .forEach(el=>{if(Object.prototype.hasOwnProperty.call(fields,el.id)){
+     el.value=fields[el.id];
+     el.dispatchEvent(new Event('input',{bubbles:false}));
+   }});
+}
+function go(to,index=0){
+ if(!['home',...modules.map(m=>m.id)].includes(to))return;
+ saveCurrentDraft();
+ section=to;
+ taskIndex=to==='home'?0:Math.max(0,Math.min(index,getTasks(to).length-1));
+ const t=activeTask(),draft=t?drafts[t.id]||{}:{};
+ currentChoice=typeof draft.choice==='string'?draft.choice:'';
+ currentMultiChoices=new Set(Array.isArray(draft.multi)?draft.multi:[]);
+ currentRects=Array.isArray(draft.rects)?draft.rects.filter(r=>
+   r&&Number.isFinite(r.x)&&Number.isFinite(r.y)&&Number.isFinite(r.w)&&Number.isFinite(r.h)).map(r=>({...r})).slice(0,500):[];
+ selectedColours=new Set(Array.isArray(draft.colours)?draft.colours:[]);
+ audioEventChoices=new Set(Array.isArray(draft.events)?draft.events:[]);
+ drawing=null;
+ if(t){
+   saveBrowserData(RESUME_STORE,{taskId:t.id});
+   history.replaceState(null,'',location.pathname+'?task='+encodeURIComponent(t.id));
+ }else{
+   history.replaceState(null,'',location.pathname);
+ }
+ nav();
+ render();
+ if(t)restoreInputFields(t);
+ window.scrollTo({top:0,behavior:'instant'});
+}
+document.addEventListener('input',e=>{
+ if(e.composedPath().some(el=>el?.id==='controls'))saveCurrentDraft()
+});
+document.addEventListener('change',e=>{
+ if(e.composedPath().some(el=>el?.id==='controls'))saveCurrentDraft()
+});
+document.addEventListener('click',e=>{
+ if(e.composedPath().some(el=>el?.id==='controls'))saveCurrentDraft()
+});
+document.addEventListener('pointerup',e=>{
+ if(section==='boxes'&&e.composedPath().some(el=>el?.id==='stage'))saveCurrentDraft()
+});
+window.addEventListener('pagehide',saveCurrentDraft);
+
 function home(){
  const cnt=completed(),all=total();
- $('main').innerHTML=`<div class="hero"><div class="eyebrow">Добро пожаловать в AI Work Lab</div><h1 class="page-title">Практикуй навыки<br>AI-аннотации</h1><p class="lede">Выбирай направление, читай инструкцию и выполняй задания в своём темпе. После проверки получай результат и объяснение. Все примеры — учебные, они помогают освоить базовые приёмы аннотации данных и оценки ответов ИИ.</p><div class="stats"><div class="stat"><strong>6</strong> направлений</div><div class="stat"><strong>${all}</strong> заданий</div><div class="stat"><strong>${cnt}</strong> выполнено</div><div class="stat">◉ Без регистрации</div></div></div><div class="info-panel"><b>Как заниматься:</b> открой модуль → ознакомься с правилами → выполни упражнение → нажми «Проверить ответ». Для сложных заданий можно использовать подсказки и повторять попытки. Прогресс сохраняется на этом устройстве.</div><h2 class="section-title">Направления практики</h2><div class="module-grid">${modules.map(m=>{const done=getTasks(m.id).filter(t=>saved[t.id]?.done).length;const all=getTasks(m.id).length;return `<button class="module-card" data-go="${m.id}"><div class="card-icon">${m.icon}</div><b>${m.title}</b><p>${m.description}</p><div class="card-bottom"><span>${done} / ${all} выполнено</span><strong>Начать →</strong></div></button>`}).join('')}</div><div class="button-row"><button id="resetProgress" class="btn btn-outline btn-sm">Сбросить мой прогресс</button></div>`;
+ $('main').innerHTML=`<div class="hero"><div class="eyebrow">Добро пожаловать в AI Work Lab</div><h1 class="page-title">Практикуй навыки<br>AI-аннотации</h1><p class="lede">Выбирай направление, читай инструкцию и выполняй задания в своём темпе. После проверки получай результат и объяснение. Все примеры — учебные, они помогают освоить базовые приёмы аннотации данных и оценки ответов ИИ.</p><div class="stats"><div class="stat"><strong>6</strong> направлений</div><div class="stat"><strong>${all}</strong> заданий</div><div class="stat"><strong>${cnt}</strong> выполнено</div><div class="stat">◉ Без регистрации</div></div></div><div class="info-panel"><b>Как заниматься:</b> открой модуль → ознакомься с правилами → выполни упражнение → нажми «Проверить ответ». Для сложных заданий можно использовать подсказки и повторять попытки. Правильные ответы, черновики и последнее открытое задание автоматически сохраняются в этом браузере. На том же устройстве и в том же браузере обучение продолжится с места остановки. В приватном режиме или после очистки данных прогресс может исчезнуть.</div><h2 class="section-title">Направления практики</h2><div class="module-grid">${modules.map(m=>{const done=getTasks(m.id).filter(t=>saved[t.id]?.done).length;const all=getTasks(m.id).length;return `<button class="module-card" data-go="${m.id}"><div class="card-icon">${m.icon}</div><b>${m.title}</b><p>${m.description}</p><div class="card-bottom"><span>${done} / ${all} выполнено</span><strong>Начать →</strong></div></button>`}).join('')}</div><div class="button-row"><button id="resetProgress" class="btn btn-outline btn-sm">Сбросить мой прогресс</button></div>`;
  $('main').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
- $('resetProgress').onclick=()=>{if(confirm('Сбросить прогресс прохождения заданий на этом устройстве?')){saved={};persist();nav();home()}};
+ $('resetProgress').onclick=()=>{if(confirm('Сбросить прогресс прохождения заданий на этом устройстве?')){saved={};drafts={};persist();try{localStorage.removeItem(RESUME_STORE);localStorage.removeItem(DRAFT_STORE)}catch{}section='home';taskIndex=0;go('home')}};
 }
 function render(){if(section==='home'){home();return}const m=modules.find(x=>x.id===section);const tasks=getTasks(section);const t=tasks[taskIndex];if(!t){$('main').innerHTML=`<div class="module-header"><div><div class="eyebrow">Практический модуль · ${esc(m.subtitle)}</div><h1 class="page-title">${esc(m.title)}</h1><p class="lede">${esc(m.description)}</p></div></div>${section==='safety'?safetyPolicyMarkup():''}<div class="panel" style="padding:28px;max-width:860px"><div class="empty" style="margin:0">Заданий в этом разделе пока нет. Загляни позже — библиотека пополняется.</div></div>`;if(section==='safety')$('downloadSafetyPolicy').onclick=downloadSafetyPolicy;return;}const done=tasks.filter(x=>saved[x.id]?.done).length;
 $('main').innerHTML=`<div class="module-header"><div><div class="eyebrow">Практический модуль · ${esc(m.subtitle)}</div><h1 class="page-title">${esc(m.title)}</h1><p class="lede">${esc(m.description)} <span style="font-weight:750;color:#345fe3">${done} из ${tasks.length} завершено.</span></p></div></div>${section==='safety'?safetyPolicyMarkup():''}<div class="task-tabs" id="taskTabs">${tasks.map((x,i)=>`<button class="task-tab ${i===taskIndex?'active':''} ${saved[x.id]?.done?'done':''}" data-index="${i}">${saved[x.id]?.done?'✓ ':'0'+(i+1)+' · '}${esc(x.title)}</button>`).join('')}</div><div class="exercise" id="exerciseContent"><div class="panel exercise-main"><div class="panel-hd"><b>${esc(t.title)}</b><span>Задание ${taskIndex+1} / ${tasks.length}</span></div><div class="stage ${section==='boxes'?'drawing-stage':''} ${section==='safety'?'text-stage':''} ${section==='audio'?'audio-stage':''}" id="stage"></div><div class="stagefoot" id="stageFoot">Учебное упражнение · AI Work Lab</div></div><aside class="panel"><div class="quiz"><div class="kicker">Вопрос / инструкция</div><h2>${esc(t.instruction)}</h2><div class="rule">${esc(t.rules)}</div><div id="controls"></div><div id="feedback" class="feedback" aria-live="polite"></div><div class="button-row"><button class="btn btn-full" id="checkBtn">Проверить ответ →</button><button class="btn btn-outline" id="hintBtn">Подсказка</button><button class="btn btn-outline" id="nextBtn">Следующее задание →</button></div><div id="hintArea"></div></div></aside></div><div class="info-panel" id="moduleInfo"></div>`;
@@ -520,7 +588,7 @@ const AUDIO_MODES={
 const audioMode=t=>t.audioMode||'transcription';
 let audioEventChoices=new Set();
 function audioView(t){
- const mode=audioMode(t);audioEventChoices=new Set();
+ const mode=audioMode(t);
  $('stage').innerHTML='<div class="transcript-player"><div class="audio-icon">🎧</div><b>Прослушай запись</b><audio id="transcriptAudio" controls preload="metadata" aria-label="Аудиозапись для аннотации"></audio><p id="transcriptAudioNotice">Загрузка аудиозаписи…</p></div>';
  $('stage').classList.remove('audio-stage');$('stage').classList.add('audio-stage');
  const player=$('transcriptAudio'),notice=$('transcriptAudioNotice');
@@ -734,9 +802,11 @@ if(answer===t.answer){markDone(t.id);showFeedback('good',`Верно! ${section=
 
 $('homeBtn').onclick=()=>go('home');$('brand').onclick=()=>go('home');
 const linkedTaskId = new URLSearchParams(window.location.search).get('task');
-const linkedModule = linkedTaskId && modules.find(m => getTasks(m.id).some(t => t.id === linkedTaskId));
+const savedTaskId=safeGet(RESUME_STORE,{})?.taskId;
+const requestedTaskId=linkedTaskId||savedTaskId;
+const linkedModule=requestedTaskId&&modules.find(m=>getTasks(m.id).some(t=>t.id===requestedTaskId));
 if(linkedModule){
-  go(linkedModule.id, getTasks(linkedModule.id).findIndex(t => t.id === linkedTaskId));
+  go(linkedModule.id,getTasks(linkedModule.id).findIndex(t=>t.id===requestedTaskId));
 }else{
   go('home');
 }
