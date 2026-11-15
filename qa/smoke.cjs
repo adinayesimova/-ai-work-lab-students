@@ -225,6 +225,47 @@ const { chromium } = require('playwright');
     assert.match(await page.locator('#feedback').getAttribute('class'),/good/);
     console.log('Engine 11 labels, tight rectangles, aliases and false-positive controls OK.');
 
+    // Colour Detection #2: replacement red-table image and eight objects.
+    const stillLife = await page.evaluate(() => {
+      const t=getTasks('colour').find(t=>t.id==='colour-2');
+      return {title:t.title,image:t.image,objects:t.facts.map(f=>f.object),groups:t.colourGroups.length,
+        oldObjects:['яблоко','груша','чашка','бутылка'].some(s=>t.facts.some(f=>f.object===s))};
+    });
+    assert.equal(stillLife.title,'Предметы на столе');
+    assert.ok(stillLife.image.includes('red-table-still-life.avif'));
+    assert.deepEqual(stillLife.objects,
+      ['кактус','блокнот','карандаш','ластик','очки','телефон','пончик','лампа']);
+    assert.equal(stillLife.groups,6);
+    assert.equal(stillLife.oldObjects,false);
+    await page.goto('http://127.0.0.1:8765/?task=colour-2', {waitUntil:'load',timeout:45000});
+    assert.equal(await page.evaluate(()=>getTasks(section)[taskIndex].id),'colour-2');
+    const loadedImage=await page.locator('#customImage').evaluate(async img=>{
+      if(!img.complete)await new Promise((resolve,reject)=>{
+        img.addEventListener('load',resolve,{once:true});
+        img.addEventListener('error',()=>reject(Error('image failed to load')),{once:true});
+      });
+      return {naturalWidth:img.naturalWidth,naturalHeight:img.naturalHeight};
+    });
+    assert.ok(loadedImage.naturalWidth>=600&&loadedImage.naturalHeight>=400,
+      'colour-2 illustration failed to decode in Chrome: '+JSON.stringify(loadedImage));
+    const rightAnswer='На красном столе стоят зелёный кактус и красная настольная лампа. Здесь лежат красный блокнот, жёлтый карандаш и белый ластик. Справа расположены бежевые очки, красный телефон и розовый пончик на белой тарелке.';
+    await page.evaluate(()=>{selectedColours=new Set(['красный','зелёный','жёлтый','розовый','белый','бежевый']);});
+    await page.locator('#colourDescription').fill(rightAnswer);
+    await page.locator('#checkBtn').click();
+    assert.match(await page.locator('#feedback').getAttribute('class'),/good/);
+    assert.match(await page.locator('#feedback').innerText(),/8 из 8/);
+    await page.evaluate(()=>{selectedColours=new Set(['красный','зелёный','жёлтый','розовый','белый','коричневый']);});
+    await page.locator('#checkBtn').click();
+    assert.match(await page.locator('#feedback').getAttribute('class'),/good/);
+    await page.locator('#colourDescription').fill(rightAnswer.replace('бежевые очки, ',''));
+    await page.locator('#checkBtn').click();
+    assert.match(await page.locator('#feedback').getAttribute('class'),/bad/);
+    await page.locator('#colourDescription').fill(rightAnswer);
+    await page.evaluate(()=>selectedColours.add('синий'));
+    await page.locator('#checkBtn').click();
+    assert.match(await page.locator('#feedback').getAttribute('class'),/bad/);
+    console.log('Colour Detection #2 image, all eight objects, valid and invalid responses OK.');
+
     // Explicitly test one invalid and one valid timestamp submission.
     const audioIndex = await page.evaluate(() => getTasks('audio').findIndex(t => t.id === 'custom-1793884339947-fy05'));
     assert.ok(audioIndex >= 0);

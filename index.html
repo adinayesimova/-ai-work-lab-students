@@ -174,6 +174,7 @@ const colourNames={
  'зелёный':{css:'#42a76f',stems:['зелен']},'жёлтый':{css:'#f0c641',stems:['желт']},'оранжевый':{css:'#ee8c36',stems:['оранжев']},
  'фиолетовый':{css:'#9866c6',stems:['фиолетов']},'розовый':{css:'#f39ac2',stems:['розов']},'белый':{css:'#fafafa',stems:['бел']},
  'чёрный':{css:'#333844',stems:['черн']},'серый':{css:'#98a4b0',stems:['сер']},'коричневый':{css:'#977050',stems:['коричнев']},
+ 'бежевый':{css:'#cfad8c',stems:['бежев']},'бордовый':{css:'#833045',stems:['бордов']},'прозрачный':{css:'#ffffff',stems:['прозрачн']},
  'бирюзовый':{css:'#2fb5b5',stems:['бирюзов']}
 };
 const normalColour=s=>String(s??'').toLowerCase().trim().replace(/ё/g,'е').replace(/\s+/g,' ');
@@ -200,7 +201,16 @@ const colour2=sceneBase(`
  `,'#f7f4ee');
 const colourTasks=[
  {id:'colour-1',title:'Яркий дом и дерево',instruction:'Определи основные цвета и опиши сцену точно.',rules:'Отметь главные цвета объектов (не считай мелкие тени и контуры). Затем напиши связное описание. Укажи цвет крыши, дерева, солнца и неба.',svg:colour1,palette:['красный','зелёный','жёлтый','синий','фиолетовый','розовый'],correctColors:['красный','зелёный','жёлтый','синий'],facts:[{object:'крыша',color:'красный',aliases:['крыша','крышу','крышей']},{object:'дерево',color:'зелёный',aliases:['дерево','деревья']},{object:'солнце',color:'жёлтый',aliases:['солнце','солнцем']},{object:'небо',color:'синий',aliases:['небо','небом']}],example:'На картинке светлый дом с красной крышей, рядом растёт зелёное дерево. Над домом синее небо и жёлтое солнце.',hint:'Ищи крупные предметы: крыша дома, дерево, солнце и небо. У каждого назови собственный цвет.'},
- {id:'colour-2',title:'Предметы на столе',instruction:'Какие основные цвета у предметов? Опиши натюрморт.',rules:'Укажи цвет яблока, груши, чашки и бутылки. Не учитывай оттенки фона и незначительные блики.',svg:colour2,palette:['красный','синий','зелёный','жёлтый','коричневый','фиолетовый'],correctColors:['красный','синий','зелёный','жёлтый'],facts:[{object:'яблоко',color:'красный',aliases:['яблоко','яблочко']},{object:'груша',color:'жёлтый',aliases:['груша','грушу']},{object:'чашка',color:'синий',aliases:['чашка','кружка']},{object:'бутылка',color:'зелёный',aliases:['бутылка','бутылку']}],example:'На светлом столе лежат красное яблоко и жёлтая груша, рядом стоят синяя чашка и зелёная бутылка.',hint:'Смотри на четыре главных предмета, а не на второстепенные оттенки стола.'}
+ {id:'colour-2',title:'Предметы на столе',instruction:'Какие основные цвета у восьми предметов? Опиши натюрморт.',rules:'На красном столе находятся кактус, блокнот, карандаш, ластик (резинка), очки, телефон, пончик и лампа. Выбери основные цвета самих предметов и опиши каждый. Не учитывай фон и незначительные блики.',image:'./assets/red-table-still-life.avif?v=20261115-colour2-v2',palette:['красный','зелёный','жёлтый','розовый','белый','коричневый','бежевый','синий','фиолетовый'],correctColors:['красный','зелёный','жёлтый','розовый','белый','коричневый'],colourGroups:[['красный'],['зелёный'],['жёлтый'],['розовый'],['белый'],['коричневый','бежевый']],facts:[
+  {object:'кактус',color:'зелёный',aliases:['кактус']},
+  {object:'блокнот',color:'красный',aliases:['блокнот','тетрадь','записная книжка'],colorAliases:['бордовый']},
+  {object:'карандаш',color:'жёлтый',aliases:['карандаш']},
+  {object:'ластик',color:'белый',aliases:['ластик','резинка','стёрка','стирательная резинка']},
+  {object:'очки',color:'коричневый',aliases:['очки','оправа'],colorAliases:['бежевый','прозрачный']},
+  {object:'телефон',color:'красный',aliases:['телефон','телефонный аппарат']},
+  {object:'пончик',color:'розовый',aliases:['пончик','донат','пышка'],colorAliases:['красный']},
+  {object:'лампа',color:'красный',aliases:['лампа','настольная лампа','светильник']}
+ ],example:'На красном столе стоят зелёный кактус и красная настольная лампа. Здесь лежат красный блокнот, жёлтый карандаш и белый ластик. Справа расположены бежевые очки, красный телефон и розовый пончик на белой тарелке.',hint:'Назови все восемь предметов и основные цвета каждого. Светло-коричневые или бежевые очки допустимы; цвет фона и мелкие детали не считай.'}
 ];
 function colourTokens(s){return (normalColour(s).match(/[a-zа-я]+/g)||[])}
 function colourMatch(token,colour){const parts=colourNames[colour]?.stems||[normalColour(colour).slice(0,Math.max(3,colour.length-2))];return parts.some(root=>token.startsWith(root))}
@@ -209,14 +219,15 @@ function factCheck(text,fact){
  const tokens=colourTokens(text);
  const aliases=[fact.object,...(fact.aliases||[])];
  const objectPositions=tokens.flatMap((tok,i)=>aliases.some(a=>objectMatch(tok,a))?[i]:[]);
- const colorPositions=tokens.flatMap((tok,i)=>colourMatch(tok,fact.color)?[i]:[]);
+ const acceptedColors=[fact.color,...(fact.colorAliases||[])];
+ const colorPositions=tokens.flatMap((tok,i)=>acceptedColors.some(c=>colourMatch(tok,c))?[i]:[]);
  return {object:objectPositions.length>0,color:colorPositions.length>0,paired:objectPositions.some(i=>colorPositions.some(j=>Math.abs(i-j)<=4))};
 }
 let selectedColours=new Set();
 function renderColourTask(t){
  if(t.image){$('stage').innerHTML='<img id="customImage" alt="Изображение для определения цветов">';$('customImage').src=t.image;}else $('stage').innerHTML=t.svg;
  $('stageFoot').remove(); // No redundant text block beneath the colour image.
- $('controls').innerHTML=`<label class="field-label">1. Отметь основные цвета на картинке</label><div id="colourOptions" class="colour-options"></div><label class="field-label" for="colourDescription">2. Опиши картинку своими словами</label><textarea id="colourDescription" class="colour-desc" maxlength="1200" placeholder="Например: На картинке красная машина, рядом зелёное дерево, над ними синее небо..."></textarea><div class="word-count" id="colourCount">0 слов · Для тренировки напиши хотя бы 12 слов</div><p class="small-note">Слова с цветами уже даны выше. Кнопка + вставляет выбранное слово в описание. При необходимости измени окончание: «зелёный» → «зелёное дерево».</p>`;
+ $('controls').innerHTML=`<label class="field-label">1. Отметь основные цвета на картинке</label><div id="colourOptions" class="colour-options"></div><label class="field-label" for="colourDescription">2. Опиши картинку своими словами</label><textarea id="colourDescription" class="colour-desc" maxlength="1200" placeholder="${t.id==='colour-2'?'Опиши все восемь предметов: кактус, блокнот, карандаш, ластик, очки, телефон, пончик и лампу. Укажи их цвета.':'Например: На картинке красная машина, рядом зелёное дерево, над ними синее небо...'}"></textarea><div class="word-count" id="colourCount">0 слов · Для тренировки напиши хотя бы 12 слов</div><p class="small-note">Слова с цветами уже даны выше. Кнопка + вставляет выбранное слово в описание. При необходимости измени окончание: «зелёный» → «зелёное дерево».</p>`;
  const desc=$('colourDescription');desc.oninput=()=>{$('colourCount').textContent=colourTokens(desc.value).length+' слов · Для тренировки напиши хотя бы 12 слов'};
  function palette(){
   $('colourOptions').innerHTML=t.palette.map((name,i)=>`<div class="colour-row"><button type="button" class="colour-chip ${selectedColours.has(name)?'active':''}" data-select-colour="${i}" aria-pressed="${selectedColours.has(name)}"><span class="swatch" style="background:${colourNames[name]?.css||'#fff'}"></span><span>${esc(name)}</span><span style="margin-left:auto">${selectedColours.has(name)?'✓':''}</span></button><button type="button" class="insert-colour" data-insert-colour="${i}" title="Вставить слово в описание" aria-label="Вставить слово ${esc(name)}">+</button></div>`).join('');
@@ -231,14 +242,16 @@ function checkColour(t){
  const words=colourTokens(text).length;
  if(!selectedColours.size){showFeedback('bad','Сначала выбери цвета на картинке.');return}
  if(words<12){showFeedback('bad',`Описание пока слишком короткое: ${words} слов. Напиши хотя бы 12 слов о предметах и их цветах.`);return}
- const correct=t.correctColors.every(c=>selectedColours.has(c))&&selectedColours.size===t.correctColors.length;
- const missing=t.correctColors.filter(c=>!selectedColours.has(c)),extra=[...selectedColours].filter(c=>!t.correctColors.includes(c));
+ const colourGroups=t.colourGroups||t.correctColors.map(c=>[c]);
+ const missing=colourGroups.filter(group=>!group.some(c=>selectedColours.has(c))).map(group=>group.join(' или '));
+ const extra=[...selectedColours].filter(c=>!colourGroups.some(group=>group.includes(c)));
+ const correct=!missing.length&&!extra.length;
  const checks=t.facts.map(f=>({...f,result:factCheck(text,f)}));
  const passed=checks.filter(x=>x.result.paired).length;
  const all=correct&&passed===checks.length;
  if(all){markDone(t.id)}else{const old=saved[t.id]||{};saved[t.id]={...old,attempts:(old.attempts||0)+1};persist()}
  const detail=checks.map(x=>`<div class="colour-check">${x.result.paired?'✓':'○'} ${esc(x.object)} — ${esc(x.color)}${x.result.paired?'':' (не обнаружена связка объекта с цветом)'}</div>`).join('');
- let summary=`<b>Цвета:</b> ${t.correctColors.length-missing.length} из ${t.correctColors.length} необходимых; лишних — ${extra.length}. <b>Описание:</b> ${passed} из ${checks.length} обязательных деталей. <div class="colour-checks">${detail}</div>`;
+ let summary=`<b>Цвета:</b> ${colourGroups.length-missing.length} из ${colourGroups.length} необходимых; лишних — ${extra.length}. <b>Описание:</b> ${passed} из ${checks.length} обязательных деталей. <div class="colour-checks">${detail}</div>`;
  if(!all){summary+=`<div style="margin-top:10px">${missing.length?'Добавь цвета: '+esc(missing.join(', '))+'. ':''}${extra.length?'Убери лишние: '+esc(extra.join(', '))+'. ':''}Проверь соседство названия предмета и его цвета (не дальше четырёх слов).</div>`}
  summary+=`<div style="margin-top:10px"><b>Пример описания:</b> ${esc(t.example)}</div><div class="small-note" style="margin-top:8px">Проверка работает по ключевым словам и близости цвета к предмету. Она не оценивает грамматику, достоверность всех деталей и красоту текста.</div>`;
  showFeedback(all?'good':'bad',(all?'Оба этапа выполнены. ':'Пока не всё совпало. ')+summary);
