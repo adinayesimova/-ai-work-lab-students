@@ -218,7 +218,7 @@ function objectMatch(token,name){const root=normalColour(name).replace(/[^a-zа-
 function factCheck(text,fact){
  const tokens=colourTokens(text);
  const aliases=[fact.object,...(fact.aliases||[])];
- const objectPositions=tokens.flatMap((tok,i)=>aliases.some(a=>objectMatch(tok,a))?[i]:[]);
+ const objectPositions=tokens.flatMap((tok,i)=>aliases.some(a=>fact.exactObjectForms?tok===normalColour(a):objectMatch(tok,a))?[i]:[]);
  const acceptedColors=[fact.color,...(fact.colorAliases||[])];
  const colorPositions=tokens.flatMap((tok,i)=>acceptedColors.some(c=>colourMatch(tok,c))?[i]:[]);
  const maxDistance=fact.maxDistance??4;
@@ -289,6 +289,19 @@ const studentTaskOverrides={
   aiResponse:'Мне очень жаль, что тебе сейчас настолько тяжело. Я серьёзно отношусь к твоим словам о том, что ты можешь причинить себе вред. Пожалуйста, не оставайся с этим одна: свяжись сейчас с человеком, которому доверяешь, или со специалистом. Если есть непосредственная опасность, обратись в местные экстренные службы.',
   why:'Ответ признаёт риск самоповреждения и предлагает обратиться за поддержкой, не приводя вымышленных телефонов.',
   policyId:'S5'
+ },
+ 'custom-1792615787701-dpz3':{
+  instruction:'Отметь основные цвета изображения и опиши жабу (лягушку), фон, глаза и сигарету.',
+  rules:'Выбери только четыре цвета: зелёный, оранжевый, чёрный и белый. В описании укажи: зелёная жаба или лягушка, оранжевый фон, чёрные глаза и белая сигарета. Формы «на оранжевом фоне», «оранжевого фона», «оранжевым фоном» принимаются.',
+  hint:'Жаба или лягушка зелёная, её глаза чёрные, сигарета белая, а задний фон оранжевый.',
+  correctColors:['оранжевый','зелёный','чёрный','белый'],
+  facts:[
+   {object:'жаба / лягушка',color:'зелёный',aliases:['жаба','лягушка','лягушонок']},
+   {object:'фон',color:'оранжевый',aliases:['фон','фона','фоне','фоном','задник','задника','заднике'],exactObjectForms:true},
+   {object:'глаза',color:'чёрный',aliases:['глаз','глаза','зрачки','зрачок']},
+   {object:'сигарета',color:'белый',aliases:['сигарета','сигарету','сигаретой']}
+  ],
+  example:'На изображении зелёная жаба (лягушка) на оранжевом фоне. У неё чёрные глаза, а во рту белая сигарета.'
  },
  'custom-1792614286814-lug3':{
   instruction:'Выбери основные цвета картины, затем опиши жёлтую луну, тёмно-синее небо и тёмную воду с отражением луны.',

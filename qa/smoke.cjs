@@ -369,6 +369,64 @@ const { chromium } = require('playwright');
     assert.match(await page.locator('#feedback').getAttribute('class'),/good/);
     console.log('Moon scene: yellow moon, independent blue sky and dark water checks OK.');
 
+    // Frog scene: all four key objects have to be correctly related to their colours.
+    // In particular all Russian case forms of «фон» must work, as must «лягушка».
+    const frog = await page.evaluate(()=>{
+      const t=getTasks('colour').find(t=>t.id==='custom-1792615787701-dpz3');
+      return {title:t.title,colors:t.correctColors,objects:t.facts.map(x=>x.object),
+        bg:t.facts.find(x=>x.object==='фон'),example:t.example};
+    });
+    assert.equal(frog.title,'Жаба');
+    assert.deepEqual(frog.colors,['оранжевый','зелёный','чёрный','белый']);
+    assert.deepEqual(frog.objects,['жаба / лягушка','фон','глаза','сигарета']);
+    assert.equal(frog.bg.exactObjectForms,true);
+    assert.ok(frog.example.includes('оранжевом фоне'));
+    await page.goto('http://127.0.0.1:8765/?task=custom-1792615787701-dpz3',
+      {waitUntil:'load',timeout:45000});
+    assert.equal(await page.evaluate(()=>getTasks(section)[taskIndex].id),
+      'custom-1792615787701-dpz3');
+    for(const colour of frog.colors){
+      const index=await page.evaluate(c=>getTasks(section)[taskIndex].palette.indexOf(c),colour);
+      assert.ok(index>=0,'frog palette must offer '+colour);
+      await page.locator('[data-select-colour="'+index+'"]').click();
+    }
+    const passingFrogTexts=[
+      'На картине зелёная жаба сидит на оранжевом фоне. У неё чёрные глаза и белая сигарета во рту.',
+      'Мы видим зелёную лягушку на оранжевом фоне, у неё чёрные глаза, а в пасти белая сигарета.',
+      'Зелёная жаба изображена на фоне оранжевого цвета. Её глаза чёрные, сигарета белая, дым поднимается вверх.',
+      'Зелёная лягушка изображена с оранжевым фоном. Чёрные глаза смотрят вперёд, белая сигарета находится во рту.',
+      'На изображении зелёная жаба, фон оранжевый, глаза чёрные, а сигарета белая. Картина нарисована яркими красками.',
+      frog.example
+    ];
+    for(const value of passingFrogTexts){
+      await page.locator('#colourDescription').fill(value);
+      await page.locator('#checkBtn').click();
+      assert.match(await page.locator('#feedback').getAttribute('class'),/good/,
+        'Valid frog description rejected: '+value);
+      assert.match(await page.locator('#feedback').innerText(),/4 из 4/);
+    }
+    // Omitting background, assigning the wrong background colour or selecting an extra colour fails.
+    const failFrogTexts=[
+      'На рисунке зелёная жаба с чёрными глазами и белой сигаретой сидит прямо перед зрителем. Она смотрит вперёд.',
+      'На рисунке зелёная лягушка на синем фоне. У неё чёрные глаза, во рту белая сигарета с дымом.',
+      'На изображении зелёная жаба и оранжевый фон, а глаза синие и сигарета белая. Сцена выглядит необычно.'
+    ];
+    for(const value of failFrogTexts){
+      await page.locator('#colourDescription').fill(value);
+      await page.locator('#checkBtn').click();
+      assert.match(await page.locator('#feedback').getAttribute('class'),/bad/,
+        'Invalid frog description accepted: '+value);
+    }
+    await page.locator('#colourDescription').fill(frog.example);
+    const extraColourIndex=await page.evaluate(()=>getTasks(section)[taskIndex].palette.indexOf('синий'));
+    await page.locator('[data-select-colour="'+extraColourIndex+'"]').click();
+    await page.locator('#checkBtn').click();
+    assert.match(await page.locator('#feedback').getAttribute('class'),/bad/);
+    await page.locator('[data-select-colour="'+extraColourIndex+'"]').click();
+    await page.locator('#checkBtn').click();
+    assert.match(await page.locator('#feedback').getAttribute('class'),/good/);
+    console.log('Frog scene: frog/frog synonyms, orange background case forms and four-colour grading OK.');
+
     // Explicitly test one invalid and one valid timestamp submission.
     const audioIndex = await page.evaluate(() => getTasks('audio').findIndex(t => t.id === 'custom-1793884339947-fy05'));
     assert.ok(audioIndex >= 0);
