@@ -13,6 +13,18 @@ const { chromium } = require('playwright');
   try {
     await page.goto('http://127.0.0.1:8765/', { waitUntil: 'load', timeout: 45000 });
     await page.locator('.module-card').first().waitFor({ timeout: 15000 });
+    // Direct links to individual tasks must load the correct exercise.
+    await page.goto('http://127.0.0.1:8765/?task=custom-1792594838730-7lvf', { waitUntil: 'load', timeout: 45000 });
+    const linkedTask = await page.evaluate(() => ({
+      id: getTasks(section)[taskIndex]?.id,
+      section,
+      title: document.querySelector('.panel-hd b')?.textContent
+    }));
+    assert.deepEqual(linkedTask, {
+      id: 'custom-1792594838730-7lvf', section: 'boxes', title: 'Вещи на вешалке'
+    });
+    console.log('Direct link opens six-shoe task OK.');
+    await page.goto('http://127.0.0.1:8765/', { waitUntil: 'load', timeout: 45000 });
     const info = await page.evaluate(() => ({ total: total(), modules: Object.fromEntries(modules.map(m => [m.id, getTasks(m.id).length])) }));
     assert.equal(info.total, 100, 'student exercise count');
     assert.deepEqual(info.modules, { count: 12, boxes: 10, classify: 10, safety: 50, audio: 10, colour: 8 });
