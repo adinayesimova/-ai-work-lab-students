@@ -460,12 +460,44 @@ const { chromium } = require('playwright');
     assert.equal(await page.evaluate(()=>getTasks(section)[taskIndex].id),
       'custom-1793894115765-gvg9');
     assert.equal(await page.locator('[id^=audioEntity]').count(),2);
+    // The correct answer must not be exposed in question, rules, hint or initial feedback.
+    const preview=(await page.locator('.quiz').innerText());
+    assert.ok(!preview.includes('Джон Дилинджер'));
+    assert.ok(!preview.includes('Джон Диллинджер'));
+    assert.ok(!preview.includes('грабит банки'));
+    assert.equal(await page.locator('[data-revealed-answer]').count(),0);
+    await page.locator('#hintBtn').click();
+    const hintBefore=(await page.locator('#hintArea').innerText());
+    assert.ok(!hintBefore.includes('Джон'));
+    assert.ok(!hintBefore.includes('грабит банки'));
+    await page.locator('#checkBtn').click();
+    assert.equal(await page.locator('[data-revealed-answer]').count(),0,
+      'empty fields must not reveal the reference');
+    await page.locator('#audioEntity0').fill('Неизвестное имя');
+    await page.locator('#checkBtn').click();
+    assert.equal(await page.locator('[data-revealed-answer]').count(),0,
+      'partially filled response must not reveal the reference');
+    await page.locator('#audioEntity1').fill('неизвестно');
+    await page.locator('#checkBtn').click();
+    assert.match(await page.locator('#feedback').getAttribute('class'),/bad/);
+    const revealedAfterWrong=await page.locator('[data-revealed-answer]').innerText();
+    assert.ok(revealedAfterWrong.includes('Джон Дилинджер'));
+    assert.ok(revealedAfterWrong.includes('Джон Диллинджер'));
+    assert.ok(revealedAfterWrong.includes('грабит банки'));
+    // Reset to the same exercise; answers must be hidden until the next submission.
+    await page.reload({waitUntil:'load'});
+    assert.equal(await page.locator('[data-revealed-answer]').count(),0);
+    assert.ok(!(await page.locator('.rule').innerText()).includes('Джон'));
+    assert.ok(!(await page.locator('.rule').innerText()).includes('грабит банки'));
+
     for(const name of ['Джон Дилинджер','Джон Диллинджер']){
       await page.locator('#audioEntity0').fill(name);
       await page.locator('#audioEntity1').fill('грабит банки');
       await page.locator('#checkBtn').click();
       assert.match(await page.locator('#feedback').getAttribute('class'),/good/,
         'Correct name must be accepted: '+name);
+      assert.ok((await page.locator('[data-revealed-answer]').innerText()).includes(name));
+      assert.ok((await page.locator('[data-revealed-answer]').innerText()).includes('грабит банки'));
     }
     await page.locator('#audioEntity0').fill('Другой человек');
     await page.locator('#audioEntity1').fill('грабит банки');
