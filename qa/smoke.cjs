@@ -248,23 +248,70 @@ const { chromium } = require('playwright');
     });
     assert.ok(loadedImage.naturalWidth>=1500&&loadedImage.naturalHeight>=1000,
       'colour-2 illustration failed to decode in Chrome: '+JSON.stringify(loadedImage));
-    const rightAnswer='На красном столе стоят зелёный кактус и красная настольная лампа. Здесь лежат красный блокнот, жёлтый карандаш и белый ластик. Справа расположены бежевые очки, красный телефон и розовый пончик на белой тарелке.';
-    await page.evaluate(()=>{selectedColours=new Set(['красный','зелёный','жёлтый','розовый','белый','бежевый']);});
+    const rightAnswer='На красном столе стоят зелёный кактус и красная настольная лампа. Здесь лежат красный блокнот, жёлтый карандаш и белый ластик. Справа расположены коричневые очки, красный телефон и розовый пончик на белой тарелке.';
+    const validColours=['красный','зелёный','жёлтый','розовый','белый','коричневый'];
+    const paletteState=await page.evaluate(()=>{
+      const t=getTasks('colour').find(t=>t.id==='colour-2');
+      return {correct:t.correctColors,groups:t.colourGroups,palette:t.palette,
+        expectedGlasses:t.facts.find(f=>f.object==='очки'),
+        sample:t.example};
+    });
+    assert.deepEqual(paletteState.correct,validColours);
+    assert.deepEqual(paletteState.groups,validColours.map(c=>[c]));
+    assert.equal(paletteState.expectedGlasses.color,'коричневый');
+    assert.ok(!paletteState.expectedGlasses.colorAliases?.includes('бежевый'));
+    assert.ok(paletteState.sample.includes('коричневые очки'));
+    assert.ok(!paletteState.sample.includes('бежевые очки'));
+    const colourButtons=page.locator('[data-select-colour]');
+    assert.equal(await colourButtons.count(),paletteState.palette.length);
     await page.locator('#colourDescription').fill(rightAnswer);
+    // Real user clicks verify that all six choices are selectable.
+    for (const colour of validColours) {
+      const index=paletteState.palette.indexOf(colour);
+      assert.ok(index>=0,'missing selectable colour '+colour);
+      await page.locator('[data-select-colour="'+index+'"]').click();
+      assert.equal(await page.locator('[data-select-colour="'+index+'"]').getAttribute('aria-pressed'),'true');
+    }
     await page.locator('#checkBtn').click();
     assert.match(await page.locator('#feedback').getAttribute('class'),/good/);
     assert.match(await page.locator('#feedback').innerText(),/8 из 8/);
-    await page.evaluate(()=>{selectedColours=new Set(['красный','зелёный','жёлтый','розовый','белый','коричневый']);});
+    for(const colour of validColours) {
+      const index=paletteState.palette.indexOf(colour);
+      await page.locator('[data-select-colour="'+index+'"]').click();
+      await page.locator('#checkBtn').click();
+      assert.match(await page.locator('#feedback').getAttribute('class'),/bad/,
+        'missing '+colour+' must fail');
+      await page.locator('[data-select-colour="'+index+'"]').click();
+    }
+    // Every offered distractor must invalidate the result.
+    for(const colour of paletteState.palette.filter(c=>!validColours.includes(c))) {
+      const index=paletteState.palette.indexOf(colour);
+      await page.locator('[data-select-colour="'+index+'"]').click();
+      await page.locator('#checkBtn').click();
+      assert.match(await page.locator('#feedback').getAttribute('class'),/bad/,
+        'extra '+colour+' must fail');
+      await page.locator('[data-select-colour="'+index+'"]').click();
+    }
+    const brownIndex=paletteState.palette.indexOf('коричневый');
+    const beigeIndex=paletteState.palette.indexOf('бежевый');
+    await page.locator('[data-select-colour="'+brownIndex+'"]').click();
+    await page.locator('[data-select-colour="'+beigeIndex+'"]').click();
     await page.locator('#checkBtn').click();
-    assert.match(await page.locator('#feedback').getAttribute('class'),/good/);
-    await page.locator('#colourDescription').fill(rightAnswer.replace('бежевые очки, ',''));
+    assert.match(await page.locator('#feedback').getAttribute('class'),/bad/,
+      'beige cannot replace brown');
+    await page.locator('[data-select-colour="'+beigeIndex+'"]').click();
+    await page.locator('[data-select-colour="'+brownIndex+'"]').click();
+    // Beige in the written answer must not be treated as brown.
+    await page.locator('#colourDescription').fill(rightAnswer.replace('коричневые очки','бежевые очки'));
+    await page.locator('#checkBtn').click();
+    assert.match(await page.locator('#feedback').getAttribute('class'),/bad/);
+    await page.locator('#colourDescription').fill(rightAnswer.replace('коричневые очки, ',''));
     await page.locator('#checkBtn').click();
     assert.match(await page.locator('#feedback').getAttribute('class'),/bad/);
     await page.locator('#colourDescription').fill(rightAnswer);
-    await page.evaluate(()=>selectedColours.add('синий'));
     await page.locator('#checkBtn').click();
-    assert.match(await page.locator('#feedback').getAttribute('class'),/bad/);
-    console.log('Colour Detection #2 image, all eight objects, valid and invalid responses OK.');
+    assert.match(await page.locator('#feedback').getAttribute('class'),/good/);
+    console.log('Colour Detection #2 strict six-colour selection and brown-glasses reference OK.');
 
     // Explicitly test one invalid and one valid timestamp submission.
     const audioIndex = await page.evaluate(() => getTasks('audio').findIndex(t => t.id === 'custom-1793884339947-fy05'));
