@@ -573,7 +573,12 @@ const { chromium } = require('playwright');
       'На красном столе стоят зелёный кактус и красная лампа, рядом лежат другие предметы.');
     const colourResume=await page.evaluate(()=>
       getTasks(section)[taskIndex].palette.indexOf('зелёный'));
-    await page.locator('[data-select-colour="'+colourResume+'"]').click();
+    const greenButton=page.locator('[data-select-colour="'+colourResume+'"]');
+    if((await greenButton.getAttribute('aria-pressed'))==='true'){
+      await greenButton.click(); // Existing saved work may already have green selected.
+    }
+    await greenButton.click();
+    assert.equal(await greenButton.getAttribute('aria-pressed'),'true');
     const firstDraft=await page.locator('#colourDescription').inputValue();
     await page.reload({waitUntil:'load'});
     assert.equal(await page.evaluate(()=>getTasks(section)[taskIndex].id),'colour-2');
